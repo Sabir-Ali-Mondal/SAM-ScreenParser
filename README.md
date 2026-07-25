@@ -1,6 +1,71 @@
-# SAM-ScreenParser
-An LLM-powered vision engine that converts screenshots into structured, deterministic screen representations for AI desktop automation and reasoning.
+# SAM ScreenParser
 
+## Project Overview
+SAM ScreenParser converts screenshots into complete, compact, structured, and deterministic screen representations. It acts as a vision-based parsing layer for desktop automation, allowing a downstream planning LLM to understand the UI state without processing raw images directly.
+
+## Architecture
+The project is consolidated into a single executable Python script that handles the entire pipeline:
+1. Launches the local KoboldCPP API server in the background.
+2. Polls the API endpoint until the vision model is fully loaded into memory.
+3. Loads the target image from the local `images/` directory and encodes it.
+4. Sends the image and a strict system prompt to the local API.
+5. Saves the structured UI data to the `output/` directory.
+
+## Directory Structure
+```text
+SAM-ScreenParser/
+├── images/
+├── output/
+└── sam_screen_parser.py
+```
+
+## Prerequisites
+- Python 3.10 or higher.
+- KoboldCPP executable.
+- Qwen 3.5 4B Vision GGUF model and corresponding mmproj GGUF file.
+- Windows OS (for the specific subprocess creation flags used in the script).
+
+## Setup Instructions
+
+1. Create the project directory and subdirectories:
+```cmd
+mkdir SAM-ScreenParser
+cd SAM-ScreenParser
+mkdir images
+mkdir output
+```
+
+2. Install the required Python package:
+```cmd
+pip install openai
+```
+
+3. Verify the model paths in `sam_screen_parser.py`. The script defaults to:
+```text
+D:\Download\Projects\qwen 3.5 4b\koboldcpp.exe
+D:\Download\Projects\qwen 3.5 4b\Qwen3.5-4B-UD-Q4_K_XL.gguf
+D:\Download\Projects\qwen 3.5 4b\mmproj-BF16.gguf
+```
+Update these variables at the top of the script if your files are located elsewhere.
+
+4. Place your target screenshot (PNG, JPG, JPEG, BMP, or WEBP) inside the `images/` directory. Ensure there is only one image in this folder, as the script automatically selects the first image it finds.
+
+5. Execute the script:
+```cmd
+python sam_screen_parser.py
+```
+
+6. Retrieve the structured data from `output/screen-data.txt`.
+
+---
+
+## Source Code
+
+Save the following code as `sam_screen_parser.py` in the root of your project directory.
+
+```python
+"""
+===============================================================================
 Project: SAM ScreenParser
 
 Goal
@@ -33,3 +98,162 @@ Long-term Goal
 Screenshot -> Vision LLM (ScreenParser) -> Structured Screen Description
          -> Planning LLM -> Python Desktop Automation Agent
 ===============================================================================
+"""
+
+import base64
+import sys
+import time
+import subprocess
+import urllib.request
+import urllib.error
+from pathlib import Path
+from openai import OpenAI
+
+KOBOLDCPP_EXE = r"D:\Download\Projects\qwen 3.5 4b\koboldcpp.exe"
+MODEL_GGUF = r"D:\Download\Projects\qwen 3.5 4b\Qwen3.5-4B-UD-Q4_K_XL.gguf"
+MMPROJ_GGUF = r"D:\Download\Projects\qwen 3.5 4b\mmproj-BF16.gguf"
+
+API_URL = "http://localhost:5001/v1"
+API_KEY = "dummy"
+MODEL_NAME = "Qwen3.5-4B"
+
+BASE_DIR = Path(__file__).parent.resolve()
+IMAGE_DIR = BASE_DIR / "images"
+OUTPUT_DIR = BASE_DIR / "output"
+
+SYSTEM_PROMPT = """You are ScreenParser.
+
+Convert any screenshot into a complete, compact, and deterministic screen representation for another AI agent.
+
+Observe only what is visible. Never assume the platform, application, or UI type. Never invent hidden or occluded content. If uncertain, write UNCERTAIN instead of guessing.
+
+Include every visible object exactly once. Preserve the visual hierarchy, reading order, spatial relationships, and interaction state. Extract all readable text.
+
+Return only the following sections:
+
+1. Screen Summary
+2. Interaction Summary
+3. Layout
+4. Objects
+For every object include:
+- ID
+- Description
+- Visible Text
+- Center (@x,y)
+- Bounds
+- Confidence
+- Interactive
+- State
+- Parent
+5. OCR
+6. Relationships
+
+Return only the structured representation."""
+
+def start_server():
+    print("Starting KoboldCPP server...")
+    cmd = [
+        KOBOLDCPP_EXE,
+        "--model", MODEL_GGUF,
+        "--mmproj", MMPROJ_GGUF,
+        "--jinja",
+        "--jinjathink", "false",
+        "--threads", "8",
+        "--port", "5001",
+        "--host", "127.0.0.1"
+    ]
+    
+    creationflags = 0
+    if sys.platform == "win32":
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+        
+    subprocess.Popen(cmd, creationflags=creationflags)
+
+def wait_for_server(timeout=180):
+    print("Waiting for server to initialize...")
+    start_time = time.time()
+    url = f"{API_URL}/models"
+    
+    while time.time() - start_time < timeout:
+        try:
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=5) as response:
+                if response.status == 200:
+                    print("Server is ready.")
+                    return True
+        except (urllib.error.URLError, Exception):
+            time.sleep(3)
+            
+    print("Error: Server failed to start within the timeout period.")
+    sys.exit(1)
+
+def load_and_encode_image():
+    if not IMAGE_DIR.exists():
+        IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+        
+    image_extensions = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
+    image_files = [f for f in IMAGE_DIR.iterdir() if f.suffix.lower() in image_extensions]
+    
+    if not image_files:
+        print(f"Error: No images found in {IMAGE_DIR}")
+        sys.exit(1)
+        
+    image_path = image_files[0]
+    print(f"Loading image: {image_path.name}")
+    
+    ext = image_path.suffix.lower()
+    mime_map = {".png": "image/png", ".webp": "image/webp", ".bmp": "image/bmp"}
+    mime_type = mime_map.get(ext, "image/jpeg")
+
+    with open(image_path, "rb") as f:
+        image_base64 = base64.b64encode(f.read()).decode("utf-8")
+        
+    return image_base64, mime_type
+
+def main():
+    print("SAM ScreenParser initialized.")
+    
+    start_server()
+    wait_for_server()
+    
+    image_base64, mime_type = load_and_encode_image()
+    
+    client = OpenAI(base_url=API_URL, api_key=API_KEY)
+    
+    print("Sending image to vision model...")
+    start_time = time.time()
+    
+    try:
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            temperature=0.0,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Parse this screenshot into the required screen representation."},
+                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_base64}"}}
+                    ]
+                }
+            ]
+        )
+    except Exception as e:
+        print(f"Error: API request failed. Details: {e}")
+        sys.exit(1)
+        
+    elapsed = time.time() - start_time
+    screen_data = response.choices[0].message.content
+    
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_file = OUTPUT_DIR / "screen-data.txt"
+    
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write(screen_data)
+        
+    print(f"Processing complete. Time elapsed: {elapsed:.2f}s")
+    print(f"Output saved to: {output_file}")
+
+if __name__ == "__main__":
+    main()
+```
