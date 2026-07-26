@@ -1,87 +1,72 @@
-## AI Routing Strategy
+# Automation Suggestion
+
+## Parser-First Architecture
+
+For an AI desktop agent, **SAM ScreenParser should be the default perception layer**. Use vision models only when the required information cannot be represented as structured UI.
 
 ```text
-                USER REQUEST
-                      │
+              User Request
+                    │
+                    ▼
+        Generate SAM ScreenParser Data
+                    │
+                    ▼
+     Can the parser answer the request?
+            │                 │
+           Yes               No
+            │                 │
+            ▼                 ▼
+      Use Parser      Capture Screenshot
+            │                 │
+            │          Vision Model
+            │                 │
+            └─────────┬───────┘
                       ▼
-      Generate Semantic + Coordinate Tables
-                      │
-                      ▼
- Can the Semantic Table satisfy the request?
-                      │
-            ┌─────────┴─────────┐
-            │                   │
-           YES                 NO
-            │                   │
-            ▼                   ▼
-     Use Parser Only     Capture Screenshot
-            │                   │
-            │             Vision Model
-            │                   │
-            └─────────┬─────────┘
-                      ▼
-             LLM Creates Plan
-                      │
-                      ▼
-       Executor Resolves ID → Coordinates
-                      │
-                      ▼
-               Execute Action
+              Execute Action
 ```
 
-### Parser (Default)
+---
 
-Use the parser for:
+## Use SAM ScreenParser For
 
-* Buttons
-* Textboxes
-* Menus
-* Tabs
-* Lists
-* Dialogs
-* Windows
-* Browser UI
-* File Explorer
-* IDEs
-* Terminal
-* Office apps
-* Desktop icons
-* Taskbar
-* Reading UI text
-* Finding elements
-* All automation actions
+- Buttons
+- Textboxes
+- Menus
+- Tabs
+- Dialogs
+- Browser UI
+- File Explorer
+- IDEs
+- Terminal
+- Office applications
+- Desktop icons
+- Reading UI text
+- Finding coordinates
+- Mouse and keyboard automation
 
-The planning LLM receives only the **Semantic Table** (IDs, text, type, action, confidence). It never receives coordinates.
+---
 
-### Vision (Fallback)
+## Use Vision Models For
 
-Use a screenshot + vision model only for:
+- Photos
+- Videos
+- Charts
+- Diagrams
+- Maps
+- Games
+- Canvas/WebGL
+- Logos
+- Colors
+- CAPTCHA
+- Image editing
+- Visual appearance (layout, alignment, design quality)
 
-* Photos
-* Videos
-* Charts
-* Diagrams
-* Maps
-* Logos
-* Colors
-* Shapes
-* Icons without labels
-* CAPTCHA
-* Canvas/WebGL
-* Games
-* Visual appearance or layout
+---
 
-### Hybrid Mode
+## Routing Rule
 
-Use **Parser + Vision** when both UI interaction and visual understanding are required (e.g., interacting with charts, images, or graphics).
+> **Parser First → Vision Only When Needed**
 
-### Routing Rule
+The parser is sufficient for **most desktop automation tasks**, while vision models should be reserved for tasks requiring true visual understanding.
 
-```text
-Parser = Default (~95% of requests)
-
-Vision = Fallback only when structured UI cannot represent the required information.
-
-LLM → Element ID
-Executor → ID → Coordinates → Action
-```
+This approach reduces token usage, avoids unnecessary vision inference, improves reliability, and keeps automation deterministic by using structured UI whenever possible.
