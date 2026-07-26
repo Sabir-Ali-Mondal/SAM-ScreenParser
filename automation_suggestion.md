@@ -1,88 +1,87 @@
-For a AI router, I'd make the parser the **default**. Only fall back to image analysis when the parser cannot represent the information needed.
+## AI Routing Strategy
 
 ```text
-                    USER REQUEST
-                         │
-                         ▼
-            Get Structured UI Parser Data
-                         │
-                         ▼
-        Can the parser satisfy the request?
-                         │
-              ┌──────────┴──────────┐
-              │                     │
-            YES                    NO
-              │                     │
-              ▼                     ▼
-      Use Parser Only       Is visual understanding required?
-              │                     │
-              │            ┌────────┴────────┐
-              │            │                 │
-              │           YES               NO
-              │            │                 │
-              ▼            ▼                 ▼
-      LLM + Parser   Capture Screenshot   Use Parser
-                         │
-                         ▼
-                  Vision Model
-                         │
-                         ▼
-              Combine Vision + Parser
-                         │
-                         ▼
-                    Execute Action
+                USER REQUEST
+                      │
+                      ▼
+      Generate Semantic + Coordinate Tables
+                      │
+                      ▼
+ Can the Semantic Table satisfy the request?
+                      │
+            ┌─────────┴─────────┐
+            │                   │
+           YES                 NO
+            │                   │
+            ▼                   ▼
+     Use Parser Only     Capture Screenshot
+            │                   │
+            │             Vision Model
+            │                   │
+            └─────────┬─────────┘
+                      ▼
+             LLM Creates Plan
+                      │
+                      ▼
+       Executor Resolves ID → Coordinates
+                      │
+                      ▼
+               Execute Action
 ```
 
-### Treat the parser as the primary source
+### Parser (Default)
 
-**Always use the parser for:**
+Use the parser for:
 
 * Buttons
 * Textboxes
 * Menus
 * Tabs
 * Lists
-* Tree views
 * Dialogs
 * Windows
 * Browser UI
 * File Explorer
-* IDEs (VS Code, Visual Studio, etc.)
+* IDEs
 * Terminal
-* Office applications
+* Office apps
 * Desktop icons
 * Taskbar
-* Context menus
-* Any clickable UI element
 * Reading UI text
-* Finding coordinates
-* Automation actions
+* Finding elements
+* All automation actions
 
-### Use image understanding only for true visual content
+The planning LLM receives only the **Semantic Table** (IDs, text, type, action, confidence). It never receives coordinates.
 
-Use a screenshot + vision model only when the task depends on information the parser cannot encode, such as:
+### Vision (Fallback)
+
+Use a screenshot + vision model only for:
 
 * Photos
 * Videos
-* Charts and graphs
+* Charts
 * Diagrams
 * Maps
-* Icons without labels
-* Colors ("click the blue button")
-* Shapes
 * Logos
+* Colors
+* Shapes
+* Icons without labels
 * CAPTCHA
-* Canvas/WebGL content
+* Canvas/WebGL
 * Games
-* Image editing
-* Visual appearance ("does this look centered?" or "is this design good?")
+* Visual appearance or layout
 
-### Rule for your router
+### Hybrid Mode
+
+Use **Parser + Vision** when both UI interaction and visual understanding are required (e.g., interacting with charts, images, or graphics).
+
+### Routing Rule
 
 ```text
-Parser = Default (≈95% of requests)
+Parser = Default (~95% of requests)
 
-Image = Fallback only for graphics and visual semantics that cannot be represented as structured UI.
+Vision = Fallback only when structured UI cannot represent the required information.
+
+LLM → Element ID
+Executor → ID → Coordinates → Action
 ```
-
-This is the architecture I'd recommend for your agent because it minimizes token usage, avoids unnecessary vision inference, and relies on the parser whenever it already has the information needed for reliable automation.
