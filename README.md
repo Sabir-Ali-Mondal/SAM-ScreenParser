@@ -220,5 +220,3 @@ For complete implementation details, see **technical_documentation.md**, includi
 SAM ScreenParser is a **parser-first perception layer** for desktop AI agents.
 
 It provides deterministic UI understanding with pixel-perfect coordinates while leaving true visual reasoning—such as photographs, charts, games, graphics, and image analysis—to dedicated vision models.
-
-This version keeps the README concise while clearly explaining the project's purpose, parser-first workflow, architecture, quick start, and where to find the full technical documentation. The implementation details remain in `technical_documentation.md`, avoiding duplication while still making the README self-contained.
