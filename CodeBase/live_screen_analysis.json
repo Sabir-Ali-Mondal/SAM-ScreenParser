@@ -1,0 +1,820 @@
+{
+  "metadata": {
+    "timestamp": "2026-07-26T13:44:26.483994",
+    "image_size": [
+      1920,
+      1080
+    ],
+    "dpi_scale": 1.25,
+    "coordinate_space": "physical_pixels",
+    "processing_time_seconds": 97.17,
+    "total_elements": 36,
+    "source": "live_screen_capture"
+  },
+  "cursor": {
+    "position": [
+      923,
+      1002
+    ],
+    "text": "New Private Tab - Brave - 2 running windows",
+    "control_type": "GroupControl",
+    "class_name": "NamedContainerAutomationPeer",
+    "bounds": [
+      850,
+      806,
+      1114,
+      1004
+    ],
+    "over_element_id": null
+  },
+  "active_window": {
+    "title": "Unknown",
+    "class": "XamlExplorerHostIslandWindow",
+    "automation_id": "",
+    "bounds": [
+      0,
+      0,
+      1920,
+      1080
+    ],
+    "width": 1920,
+    "height": 1080
+  },
+  "screen_state": {
+    "has_popup": false,
+    "has_loading": false,
+    "has_dialog": false,
+    "is_empty": false,
+    "active_app_type": "file_explorer"
+  },
+  "elements": [
+    {
+      "id": 1,
+      "text": "File Edit Selection View Go Run Terminal Help SAM-ScreenParser v Q Search",
+      "type": "tab",
+      "interactive": true,
+      "state": "clickable",
+      "confidence": 0.75,
+      "control_type": "TabItemControl",
+      "class_name": "BraveTab",
+      "bounds": [
+        104,
+        13,
+        865,
+        38
+      ],
+      "center": [
+        484,
+        25
+      ],
+      "action": "click"
+    },
+    {
+      "id": 3,
+      "text": "Explorer",
+      "type": "button",
+      "interactive": true,
+      "state": "clickable",
+      "confidence": 0.75,
+      "control_type": "ButtonControl",
+      "class_name": "ReloadButton",
+      "bounds": [
+        64,
+        64,
+        135,
+        84
+      ],
+      "center": [
+        99,
+        74
+      ],
+      "action": "click"
+    },
+    {
+      "id": 4,
+      "text": "screen_analyzer.py",
+      "type": "tab",
+      "interactive": true,
+      "state": "clickable",
+      "confidence": 0.7,
+      "control_type": "EditControl",
+      "class_name": "BraveOmniboxViewViews",
+      "bounds": [
+        381,
+        64,
+        555,
+        86
+      ],
+      "center": [
+        468,
+        75
+      ],
+      "action": "click"
+    },
+    {
+      "id": 5,
+      "text": "draw_test.py",
+      "type": "tab",
+      "interactive": true,
+      "state": "clickable",
+      "confidence": 0.7,
+      "control_type": "EditControl",
+      "class_name": "BraveOmniboxViewViews",
+      "bounds": [
+        571,
+        64,
+        694,
+        86
+      ],
+      "center": [
+        632,
+        75
+      ],
+      "action": "click"
+    },
+    {
+      "id": 6,
+      "text": "TRAE",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "ButtonControl",
+      "class_name": "ZoomView",
+      "bounds": [
+        1398,
+        68,
+        1444,
+        87
+      ],
+      "center": [
+        1421,
+        77
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 8,
+      "text": "7Q",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "HyperlinkControl",
+      "class_name": "text-token-text-primary contrast-high:not-dark:keyboard-focused:focus-ring no-draggable hover:bg-token-surface-hover keyboard-focused:bg-token-surface-hover touch:h-10 touch:w-10 flex h-9 w-9 items-center justify-center rounded-lg outline-none disabled:opacity-50 not-keyboard-focused:hover:bg-transparent!",
+      "bounds": [
+        10,
+        109,
+        43,
+        131
+      ],
+      "center": [
+        26,
+        120
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 9,
+      "text": "Folder",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "h-header-height flex items-center justify-between",
+      "bounds": [
+        68,
+        102,
+        129,
+        123
+      ],
+      "center": [
+        98,
+        112
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 10,
+      "text": "screen_analyzer.py",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "draggable no-draggable-children sticky top-0 p-2 touch:p-2.5 flex items-center justify-between z-20 h-header-height bg-transparent! shadow-none! pointer-events-none select-none [view-transition-name:var(--vt-page-header)] *:pointer-events-auto transition-none motion-safe:transition-none data-[fixed-header=less-than-xl]:@w-xl/main:bg-transparent data-[fixed-header=less-than-xl]:@w-xl/main:shadow-none!",
+      "bounds": [
+        381,
+        105,
+        538,
+        126
+      ],
+      "center": [
+        459,
+        115
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 14,
+      "text": "venv",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "h-header-height flex items-center justify-between",
+      "bounds": [
+        68,
+        128,
+        156,
+        149
+      ],
+      "center": [
+        112,
+        138
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 17,
+      "text": "B images",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "group/scrollport relative flex min-h-0 w-full flex-1 flex-col overflow-y-auto",
+      "bounds": [
+        68,
+        156,
+        156,
+        177
+      ],
+      "center": [
+        112,
+        166
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 21,
+      "text": "output",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "HyperlinkControl",
+      "class_name": "group __menu-item hoverable gap-1.5 keyboard-focused:focus-ring keyboard-focused:-outline-offset-2",
+      "bounds": [
+        68,
+        211,
+        156,
+        233
+      ],
+      "center": [
+        112,
+        222
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 26,
+      "text": "draw_test.py",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "HyperlinkControl",
+      "class_name": "group __menu-item hoverable gap-1.5 keyboard-focused:focus-ring keyboard-focused:-outline-offset-2",
+      "bounds": [
+        79,
+        266,
+        198,
+        289
+      ],
+      "center": [
+        138,
+        277
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 29,
+      "text": "live_screen_analysis.json",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "HyperlinkControl",
+      "class_name": "group __menu-item hoverable gap-1.5 keyboard-focused:focus-ring keyboard-focused:-outline-offset-2",
+      "bounds": [
+        77,
+        294,
+        281,
+        316
+      ],
+      "center": [
+        179,
+        305
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 35,
+      "text": "screen_analyzer.py",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "HyperlinkControl",
+      "class_name": "group __menu-item hoverable keyboard-focused:focus-ring keyboard-focused:-outline-offset-2 focus-within:z-21",
+      "bounds": [
+        79,
+        348,
+        242,
+        372
+      ],
+      "center": [
+        160,
+        360
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 40,
+      "text": "Problems Output",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "not-keyboard-focused:outline-none min-h-0 flex-1",
+      "bounds": [
+        381,
+        554,
+        525,
+        576
+      ],
+      "center": [
+        453,
+        565
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 41,
+      "text": "Terminal",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "not-keyboard-focused:outline-none min-h-0 flex-1",
+      "bounds": [
+        540,
+        554,
+        609,
+        576
+      ],
+      "center": [
+        574,
+        565
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 44,
+      "text": "Open agent ecosystem tailored for all dev needs",
+      "type": "button",
+      "interactive": true,
+      "state": "clickable",
+      "confidence": 0.6,
+      "control_type": "GroupControl",
+      "class_name": "unknown",
+      "bounds": [
+        1462,
+        580,
+        1830,
+        604
+      ],
+      "center": [
+        1646,
+        592
+      ],
+      "action": "click"
+    },
+    {
+      "id": 45,
+      "text": "warnings.warn(",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "not-keyboard-focused:outline-none min-h-0 flex-1",
+      "bounds": [
+        390,
+        613,
+        550,
+        636
+      ],
+      "center": [
+        470,
+        624
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 47,
+      "text": "Understands acts and delivers real software",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "unknown",
+      "bounds": [
+        1462,
+        618,
+        1802,
+        642
+      ],
+      "center": [
+        1632,
+        630
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 48,
+      "text": "maximum Length (1024). Depending on the model you may observe exceptions performance degradati",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "not-keyboard-focused:outline-none min-h-0 flex-1",
+      "bounds": [
+        384,
+        681,
+        1360,
+        705
+      ],
+      "center": [
+        872,
+        693
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 51,
+      "text": "Log in to start",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "TextControl",
+      "class_name": "unknown",
+      "bounds": [
+        1438,
+        710,
+        1554,
+        731
+      ],
+      "center": [
+        1496,
+        720
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 53,
+      "text": "Active window: screer",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "not-keyboard-focused:outline-none min-h-0 flex-1",
+      "bounds": [
+        381,
+        798,
+        590,
+        820
+      ],
+      "center": [
+        485,
+        809
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 54,
+      "text": "App type: ide",
+      "type": "input",
+      "interactive": true,
+      "state": "editable",
+      "confidence": 0.6,
+      "control_type": "GroupControl",
+      "class_name": "not-keyboard-focused:outline-none min-h-0 flex-1",
+      "bounds": [
+        381,
+        821,
+        519,
+        843
+      ],
+      "center": [
+        450,
+        832
+      ],
+      "action": "type"
+    },
+    {
+      "id": 55,
+      "text": "SAM-ScreenParser/techni...",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "not-keyboard-focused:outline-none min-h-0 flex-1",
+      "bounds": [
+        617,
+        819,
+        832,
+        843
+      ],
+      "center": [
+        724,
+        831
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 56,
+      "text": "New Private Tab - Brave",
+      "type": "button",
+      "interactive": true,
+      "state": "clickable",
+      "confidence": 0.6,
+      "control_type": "GroupControl",
+      "class_name": "min-h-8 text-message relative flex w-full flex-col items-end gap-2 text-start break-words whitespace-normal outline-none keyboard-focused:focus-ring [.text-message+&]:mt-1",
+      "bounds": [
+        876,
+        819,
+        1101,
+        843
+      ],
+      "center": [
+        988,
+        831
+      ],
+      "action": "click"
+    },
+    {
+      "id": 57,
+      "text": "Outline",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "HyperlinkControl",
+      "class_name": "group __menu-item hoverable keyboard-focused:focus-ring keyboard-focused:-outline-offset-2 transition-opacity duration-150",
+      "bounds": [
+        58,
+        862,
+        137,
+        882
+      ],
+      "center": [
+        97,
+        872
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 58,
+      "text": "Total elements: 29",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "unknown",
+      "bounds": [
+        381,
+        866,
+        567,
+        889
+      ],
+      "center": [
+        474,
+        877
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 59,
+      "text": "High confidence: 12",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "not-keyboard-focused:outline-none min-h-0 flex-1",
+      "bounds": [
+        381,
+        888,
+        582,
+        912
+      ],
+      "center": [
+        481,
+        900
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 60,
+      "text": "Element types: tab",
+      "type": "input",
+      "interactive": true,
+      "state": "editable",
+      "confidence": 0.6,
+      "control_type": "GroupControl",
+      "class_name": "not-keyboard-focused:outline-none min-h-0 flex-1",
+      "bounds": [
+        381,
+        912,
+        584,
+        935
+      ],
+      "center": [
+        482,
+        923
+      ],
+      "action": "type"
+    },
+    {
+      "id": 61,
+      "text": "Saved to: lLive_scree",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "not-keyboard-focused:outline-none min-h-0 flex-1",
+      "bounds": [
+        381,
+        934,
+        588,
+        958
+      ],
+      "center": [
+        484,
+        946
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 62,
+      "text": "sktop_icon : 17",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "not-keyboard-focused:outline-none min-h-0 flex-1",
+      "bounds": [
+        1110,
+        912,
+        1277,
+        935
+      ],
+      "center": [
+        1193,
+        923
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 63,
+      "text": "No suggestions available waiting for",
+      "type": "button",
+      "interactive": true,
+      "state": "clickable",
+      "confidence": 0.6,
+      "control_type": "ButtonControl",
+      "class_name": "group __menu-item hoverable keyboard-focused:focus-ring keyboard-focused:-outline-offset-2 ms-2 me-1.5 gap-2! pe-1.5 data-fill:max-w-full [&>div:first-child]:gap-2!",
+      "bounds": [
+        60,
+        950,
+        314,
+        971
+      ],
+      "center": [
+        187,
+        960
+      ],
+      "action": "click"
+    },
+    {
+      "id": 64,
+      "text": "your coding...",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "ButtonControl",
+      "class_name": "group __menu-item hoverable keyboard-focused:focus-ring keyboard-focused:-outline-offset-2 ms-2 me-1.5 gap-2! pe-1.5 data-fill:max-w-full [&>div:first-child]:gap-2!",
+      "bounds": [
+        60,
+        973,
+        158,
+        995
+      ],
+      "center": [
+        109,
+        984
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 66,
+      "text": "draw_test.py",
+      "type": "desktop_icon",
+      "interactive": true,
+      "state": "double_click_required",
+      "confidence": 0.4,
+      "control_type": "GroupControl",
+      "class_name": "not-keyboard-focused:outline-none min-h-0 flex-1",
+      "bounds": [
+        1110,
+        959,
+        1239,
+        983
+      ],
+      "center": [
+        1174,
+        971
+      ],
+      "action": "double_click"
+    },
+    {
+      "id": 67,
+      "text": "16.0 KB/s",
+      "type": "taskbar_item",
+      "interactive": true,
+      "state": "clickable",
+      "confidence": 0.6,
+      "control_type": "GroupControl",
+      "class_name": "unknown",
+      "bounds": [
+        1408,
+        1028,
+        1489,
+        1049
+      ],
+      "center": [
+        1448,
+        1038
+      ],
+      "action": "click"
+    },
+    {
+      "id": 68,
+      "text": "1:42 PM",
+      "type": "taskbar_item",
+      "interactive": true,
+      "state": "clickable",
+      "confidence": 0.6,
+      "control_type": "GroupControl",
+      "class_name": "unknown",
+      "bounds": [
+        1836,
+        1028,
+        1899,
+        1049
+      ],
+      "center": [
+        1867,
+        1038
+      ],
+      "action": "click"
+    }
+  ],
+  "summary": {
+    "interactive_count": 36,
+    "static_count": 0,
+    "high_confidence_count": 11,
+    "by_type": {
+      "tab": 3,
+      "button": 4,
+      "desktop_icon": 25,
+      "input": 2,
+      "taskbar_item": 2
+    }
+  }
+}

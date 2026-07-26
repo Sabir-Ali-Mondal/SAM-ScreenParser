@@ -1,0 +1,773 @@
+{
+  "metadata": {
+    "timestamp": "2026-07-26T12:39:15.098325",
+    "image_size": [
+      1920,
+      1078
+    ],
+    "processing_time_seconds": 45.9,
+    "total_elements": 43
+  },
+  "active_window": {
+    "title": "Unknown",
+    "class": "Unknown",
+    "bounds": [
+      0,
+      0,
+      1920,
+      1080
+    ],
+    "width": 1920,
+    "height": 1080
+  },
+  "screen_state": {
+    "has_popup": false,
+    "has_loading": false,
+    "has_dialog": false,
+    "is_empty": false,
+    "active_app_type": "generic_window"
+  },
+  "elements": [
+    {
+      "id": 1,
+      "text": "Recycle Bin SQLSQL",
+      "type": "text_label",
+      "interactive": false,
+      "state": "static",
+      "bounds": [
+        4,
+        69,
+        171,
+        90
+      ],
+      "center": [
+        87,
+        79
+      ]
+    },
+    {
+      "id": 2,
+      "text": "Apps: YOUTUBE",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        567,
+        123,
+        701,
+        150
+      ],
+      "center": [
+        634,
+        136
+      ]
+    },
+    {
+      "id": 3,
+      "text": "All",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        573,
+        188,
+        603,
+        209
+      ],
+      "center": [
+        588,
+        198
+      ]
+    },
+    {
+      "id": 4,
+      "text": "Apps",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        628,
+        190,
+        673,
+        209
+      ],
+      "center": [
+        650,
+        199
+      ]
+    },
+    {
+      "id": 5,
+      "text": "Documents",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        701,
+        189,
+        797,
+        209
+      ],
+      "center": [
+        749,
+        199
+      ]
+    },
+    {
+      "id": 6,
+      "text": "Settings",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        893,
+        189,
+        964,
+        209
+      ],
+      "center": [
+        928,
+        199
+      ]
+    },
+    {
+      "id": 7,
+      "text": "Folders",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        989,
+        189,
+        1053,
+        209
+      ],
+      "center": [
+        1021,
+        199
+      ]
+    },
+    {
+      "id": 8,
+      "text": "Photos",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        1079,
+        189,
+        1139,
+        209
+      ],
+      "center": [
+        1109,
+        199
+      ]
+    },
+    {
+      "id": 10,
+      "text": "YouTube",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        18,
+        200,
+        81,
+        220
+      ],
+      "center": [
+        49,
+        210
+      ]
+    },
+    {
+      "id": 11,
+      "text": "WhatsApp",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        102,
+        201,
+        181,
+        220
+      ],
+      "center": [
+        141,
+        210
+      ]
+    },
+    {
+      "id": 12,
+      "text": "Web",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        125,
+        220,
+        160,
+        238
+      ],
+      "center": [
+        142,
+        229
+      ]
+    },
+    {
+      "id": 13,
+      "text": "Best match for apps",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        515,
+        250,
+        682,
+        276
+      ],
+      "center": [
+        598,
+        263
+      ]
+    },
+    {
+      "id": 14,
+      "text": "YouTube",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        561,
+        302,
+        636,
+        325
+      ],
+      "center": [
+        598,
+        313
+      ]
+    },
+    {
+      "id": 15,
+      "text": "Telegram",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        14,
+        329,
+        83,
+        350
+      ],
+      "center": [
+        48,
+        339
+      ]
+    },
+    {
+      "id": 16,
+      "text": "App",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        561,
+        329,
+        594,
+        349
+      ],
+      "center": [
+        577,
+        339
+      ]
+    },
+    {
+      "id": 17,
+      "text": "Store",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        511,
+        383,
+        561,
+        404
+      ],
+      "center": [
+        536,
+        393
+      ]
+    },
+    {
+      "id": 18,
+      "text": "YouTube",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        1124,
+        379,
+        1218,
+        404
+      ],
+      "center": [
+        1171,
+        391
+      ]
+    },
+    {
+      "id": 19,
+      "text": "App",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        1152,
+        412,
+        1187,
+        432
+      ],
+      "center": [
+        1169,
+        422
+      ]
+    },
+    {
+      "id": 20,
+      "text": "Download",
+      "type": "button",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        10,
+        461,
+        87,
+        479
+      ],
+      "center": [
+        48,
+        470
+      ]
+    },
+    {
+      "id": 21,
+      "text": "App For Youtube",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        561,
+        429,
+        699,
+        454
+      ],
+      "center": [
+        630,
+        441
+      ]
+    },
+    {
+      "id": 22,
+      "text": "AI-AGENTS-. agent sam",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        1709,
+        458,
+        1892,
+        482
+      ],
+      "center": [
+        1800,
+        470
+      ]
+    },
+    {
+      "id": 23,
+      "text": "(3) YOUTUBE - Search for apps in the Microsoft Store",
+      "type": "input",
+      "interactive": true,
+      "state": "editable",
+      "bounds": [
+        526,
+        480,
+        907,
+        507
+      ],
+      "center": [
+        716,
+        493
+      ]
+    },
+    {
+      "id": 24,
+      "text": "(7 Open",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        966,
+        493,
+        1043,
+        515
+      ],
+      "center": [
+        1004,
+        504
+      ]
+    },
+    {
+      "id": 25,
+      "text": "Subscriptions",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        966,
+        533,
+        1095,
+        554
+      ],
+      "center": [
+        1030,
+        543
+      ]
+    },
+    {
+      "id": 26,
+      "text": "Proton VPN",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        8,
+        590,
+        91,
+        609
+      ],
+      "center": [
+        49,
+        599
+      ]
+    },
+    {
+      "id": 27,
+      "text": "Shorts",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        966,
+        572,
+        1049,
+        593
+      ],
+      "center": [
+        1007,
+        582
+      ]
+    },
+    {
+      "id": 28,
+      "text": "Search",
+      "type": "button",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        966,
+        610,
+        1051,
+        632
+      ],
+      "center": [
+        1008,
+        621
+      ]
+    },
+    {
+      "id": 30,
+      "text": "TMonitor",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        14,
+        720,
+        83,
+        739
+      ],
+      "center": [
+        48,
+        729
+      ]
+    },
+    {
+      "id": 31,
+      "text": "shalaur react",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        1809,
+        720,
+        1903,
+        740
+      ],
+      "center": [
+        1856,
+        730
+      ]
+    },
+    {
+      "id": 32,
+      "text": "With projec.",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        1813,
+        740,
+        1901,
+        761
+      ],
+      "center": [
+        1857,
+        750
+      ]
+    },
+    {
+      "id": 33,
+      "text": "Visual Studio MongoDB",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        0,
+        850,
+        181,
+        869
+      ],
+      "center": [
+        90,
+        859
+      ]
+    },
+    {
+      "id": 34,
+      "text": "Postman",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        208,
+        850,
+        271,
+        870
+      ],
+      "center": [
+        239,
+        860
+      ]
+    },
+    {
+      "id": 35,
+      "text": "Code",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        29,
+        870,
+        70,
+        888
+      ],
+      "center": [
+        49,
+        879
+      ]
+    },
+    {
+      "id": 36,
+      "text": "Compass",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        110,
+        870,
+        177,
+        889
+      ],
+      "center": [
+        143,
+        879
+      ]
+    },
+    {
+      "id": 37,
+      "text": "GitHub",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        22,
+        979,
+        75,
+        998
+      ],
+      "center": [
+        48,
+        988
+      ]
+    },
+    {
+      "id": 38,
+      "text": "Trae",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        127,
+        981,
+        162,
+        998
+      ],
+      "center": [
+        144,
+        989
+      ]
+    },
+    {
+      "id": 39,
+      "text": "Desktop",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        20,
+        1001,
+        79,
+        1020
+      ],
+      "center": [
+        49,
+        1010
+      ]
+    },
+    {
+      "id": 40,
+      "text": "0.47 KB/s",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        1415,
+        1028,
+        1502,
+        1049
+      ],
+      "center": [
+        1458,
+        1038
+      ]
+    },
+    {
+      "id": 41,
+      "text": "ENG",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        1634,
+        1030,
+        1671,
+        1050
+      ],
+      "center": [
+        1652,
+        1040
+      ]
+    },
+    {
+      "id": 42,
+      "text": "1:01 AM",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        1830,
+        1028,
+        1903,
+        1048
+      ],
+      "center": [
+        1866,
+        1038
+      ]
+    },
+    {
+      "id": 43,
+      "text": "0.57 KB/s",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        1415,
+        1050,
+        1502,
+        1069
+      ],
+      "center": [
+        1458,
+        1059
+      ]
+    },
+    {
+      "id": 44,
+      "text": "US:",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        1640,
+        1050,
+        1667,
+        1069
+      ],
+      "center": [
+        1653,
+        1059
+      ]
+    },
+    {
+      "id": 45,
+      "text": "7/24/2026",
+      "type": "sidebar_item",
+      "interactive": true,
+      "state": "enabled",
+      "bounds": [
+        1828,
+        1050,
+        1901,
+        1069
+      ],
+      "center": [
+        1864,
+        1059
+      ]
+    }
+  ],
+  "summary": {
+    "interactive_count": 42,
+    "static_count": 1,
+    "by_type": {
+      "text_label": 1,
+      "sidebar_item": 39,
+      "button": 2,
+      "input": 1
+    }
+  }
+}
