@@ -177,6 +177,15 @@ except Exception:
 # reloading ~80MB of models on every call.
 OCR = RapidOCR()
 
+# Queries the OS for the current display DPI scale factor.
+# Returns 1.0 as fallback if the query fails.
+# Used in metadata so the executor knows whether coordinates are scaled.
+def get_dpi_scale():
+    try:
+        return ctypes.windll.user32.GetDpiForSystem() / 96.0
+    except Exception:
+        return 1.0
+
 # Text patterns that identify code content (non-actionable).
 # Used by the classifier to filter out editor lines from the actionable list.
 CODE_PATTERNS = ['def ', 'class ', 'import ', 'from ', 'return ', 'with ',
@@ -323,7 +332,7 @@ def classify_element(text, bounds, H, control_type, class_name):
     # Disable position heuristics that would misclassify everything.
     is_electron = (control_type == 'PaneControl' and class_name == 'View')
 
-    # Text-content heuristics (work regardless of UIA quality):
+    # --- Text-content heuristics (work regardless of UIA quality) ---
 
     # Code content: function defs, imports, method calls
     if text.strip().isdigit() and len(text.strip()) <= 4 and w < 50:
@@ -351,13 +360,15 @@ def classify_element(text, bounds, H, control_type, class_name):
     terminal_patterns = ['capturing', 'running', 'detected', 'complete in',
                          'dependencies ok', 'saved ', 'elements:', 'screen text:',
                          'cursor over', 'json size', 'llm payload', 'processed 0/0',
-                         'no suggestions', 'waiting for', 'high confidence']
+                         'no suggestions', 'waiting for', 'high confidence',
+                         'live analysis', 'enriching with', 'drew ']
     if any(p in tl for p in terminal_patterns):
         return {'type': 'text_label', 'interactive': False, 'state': 'static', 'confidence': 0.60}
 
     # Status bar patterns (prevents editor status from becoming actionable)
     status_patterns = ['ln ', 'col ', 'spaces:', 'utf-8', 'crlf', 'python 3.',
-                       'select python interpreter', 'go live', 'cue-pro']
+                       'select python interpreter', 'go live', 'cue-pro',
+                       'side ai chat', 'inline ai chat']
     if any(p in tl for p in status_patterns):
         return {'type': 'text_label', 'interactive': False, 'state': 'static', 'confidence': 0.60}
 
