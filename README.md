@@ -7,86 +7,32 @@
 ![GPU](https://img.shields.io/badge/GPU-Not_Required-orange)
 ![Offline](https://img.shields.io/badge/Cloud-Not_Required-yellow)
 
-> **Note on Naming**
-> **SAM** stands for **Screen Automation Manager** and is also a nod to the author's initials, **Sabir Ali Mondal**.
-> This project is completely independent and **is NOT related to Meta's Segment Anything Model (SAM).**
+> **Note on Naming:** **SAM** stands for **Screen Automation Manager** (and the author's initials, **S**abir **A**li **M**ondal). This project is independent and **NOT related to Meta's Segment Anything Model.**
 
 ---
 
 # Overview
 
-SAM ScreenParser is a local screen understanding engine designed for AI desktop agents.
+SAM ScreenParser converts the live desktop into compact, structured JSON for AI agents. Instead of sending screenshots to vision models, it provides deterministic coordinates, full-screen text context, and semantic UI data that LLMs can reason over efficiently.
 
-Instead of repeatedly sending screenshots to a vision-language model, SAM converts the current desktop into compact, structured JSON that language models can reason over efficiently.
+The pipeline combines **Florence-2** for pixel-perfect grounding, **dual-layer Tesseract OCR** for element text + full-screen context, and **Windows UI Automation** for semantic enrichment. It runs **fully offline** on CPU-only systems with no cloud APIs.
 
-The pipeline combines **Florence-2** for pixel-perfect grounding, **Tesseract OCR** for clean text extraction, **Windows UI Automation** for semantic enrichment, and screen-state analysis to produce deterministic, automation-ready output.
-
-Each detected element includes its exact screen coordinates, semantic type, interaction state, confidence score, cursor context, and screen metadata, allowing an automation controller to interact with the operating system using deterministic coordinates instead of estimated locations.
-
-The entire pipeline runs **fully offline**, requires **no cloud APIs**, and is designed to work on **CPU-only systems**, making it suitable for standard laptops and local AI desktop agents.
-
-Rather than replacing vision models, SAM acts as the primary perception layer for desktop automation. Vision models remain useful for photographs, charts, videos, graphical canvases, games, and other content that cannot be represented as structured UI data.
-
----
-
-# Design Philosophy
-
-Traditional desktop agents repeatedly send screenshots to a vision-language model and ask it to rediscover the interface on every step.
-
-SAM ScreenParser follows a **parser-first architecture**. It converts the desktop into structured, automation-ready JSON, allowing language models to reason over deterministic UI data instead of raw pixels.
-
-Vision models remain a fallback for photographs, charts, graphics, and other purely visual content that cannot be represented as structured UI.
-
-This approach reduces unnecessary visual reasoning, improves reliability, and enables efficient desktop automation with small local language models.
-
----
-
-# Why SAM ScreenParser?
-
-Modern Vision Language Models are excellent at understanding images.
-
-Desktop automation, however, requires something different:
-
-* Deterministic coordinates
-* Reliable UI understanding
-* Minimal visual reasoning
-* Repeatable execution
-* Safe controller behavior
-
-Instead of asking an LLM to rediscover the interface from pixels every time, SAM extracts structured UI information once and allows the language model to reason over that representation.
+SAM is a perception layer, not a vision model replacement. Vision models remain necessary for photographs, charts, games, and canvas content.
 
 ---
 
 # Architecture
 
 ```text
-                     Desktop Screen
-                           │
-                           ▼
-                  SAM ScreenParser
-                           │
-       ┌───────────────────┼────────────────────┐
-       │                   │                    │
-       ▼                   ▼                    ▼
- Florence-2          Tesseract OCR      Windows UIA
- Pixel Grounding      Text Extraction   Semantic Data
-       │                   │                    │
-       └───────────────────┼────────────────────┘
-                           │
-                           ▼
-                  Screen State Analysis
-                           │
-                           ▼
-                 Cursor Context Detection
-                           │
-                           ▼
-                Structured Automation JSON
-                           │
-                           ▼
-                     Planning LLM
-                           │
-                           ▼
-                 Desktop Automation Agent
+Desktop Screen → SAM ScreenParser
+    ├── Florence-2 (pixel grounding)
+    ├── Dual-Layer OCR (element crops + full-screen summary)
+    ├── Windows UIA (semantic enrichment + cursor context)
+    └── Screen State Analysis
+            ↓
+    Structured JSON (elements + screen_text + cursor)
+            ↓
+    Planning LLM → Desktop Automation Agent
 ```
 
 ---
@@ -95,186 +41,80 @@ Instead of asking an LLM to rediscover the interface from pixels every time, SAM
 
 ```json
 {
-  "cursor": {
-    "position": [183, 306],
-    "control_type": "TreeItem",
-    "over_element_id": 26
+  "screen_text": {
+    "raw_text": "Explorer screen_analyzer.py\n(.venv) PS D:\\Projects> py screen_analyzer.py\nLive analysis complete in 89.2s",
+    "char_count": 1059, "line_count": 26, "is_truncated": false
   },
-  "screen_state": {
-    "active_app_type": "file_explorer",
-    "has_dialog": false
-  },
-  "elements": [
-    {
-      "id": 20,
-      "type": "button",
-      "text": "Download",
-      "action": "click",
-      "bounds": [10, 461, 87, 479],
-      "center": [48, 470],
-      "confidence": 0.98
-    }
-  ]
+  "cursor": { "position": [183, 306], "control_type": "TreeItem", "over_element_id": 26 },
+  "screen_state": { "active_app_type": "ide", "has_dialog": false },
+  "elements": [{
+    "id": 20, "type": "button", "text": "Download", "action": "click",
+    "bounds": [10, 461, 87, 479], "center": [48, 470], "confidence": 0.98
+  }]
 }
 ```
 
 ---
 
-# What It Guarantees
+# Guarantees & Limitations
 
-* Pixel-perfect element coordinates derived from Florence-2 grounding and mapped back to the original screen resolution.
-* Clean OCR using Tesseract with preprocessing, contrast normalization, and icon-noise removal.
-* DPI-aware coordinate mapping so screenshot coordinates, UI Automation coordinates, cursor coordinates, and click locations remain consistent across display scaling.
-* Confidence score for every detected element.
-* Cursor context identifying the real operating system control beneath the mouse pointer.
-* Structured JSON optimized for LLM desktop automation.
-* Fully local execution with no cloud dependency.
+**Guarantees:**
+- Pixel-perfect coordinates from Florence-2, resolution-independent
+- Clean element OCR + full-screen visible text summary (<1s overhead)
+- DPI-aware mapping across screenshot, UIA, cursor, and click coordinates
+- Confidence scores on every element; cursor OS-level control identification
+- Fully local, offline, no cloud dependency
 
----
+**Does NOT Guarantee:**
+SAM refuses to guess. Low-confidence elements are excluded rather than mislabeled. This is a safety feature.
 
-# What It Does **Not** Guarantee
+**Known Cons:**
+- 45–90s processing on CPU; not real-time
+- Small icons, nested elements, and icon-only controls may be missed
+- No parent-child hierarchy, Z-order, scroll state, or hidden element detection
+- Dense UI regions may have merged lines in full-screen text
+- English-only keyword heuristics; non-English relies on control type
+- Requires vision model fallback for images, charts, videos, and canvas content
 
-SAM intentionally refuses to guess.
-
-If an element cannot be identified with sufficient confidence, it is better to decline the action than click the wrong control. For example, a line number in a code editor that visually resembles an input field will be classified as `code_content` with low confidence and excluded from actionable output, rather than mislabeled as an editable input.
-
-This is a deliberate safety feature rather than a limitation.
-
-## Current Cons of SAM ScreenParser
-
-* Slow processing (45–90 seconds on CPU)
-* Small icons are often missed
-* Some UI elements are not detected
-* Nested elements may be missed
-* Weak semantic classification for some controls
-* No parent–child UI hierarchy
-* No Z-order (which window is on top)
-* Duplicate text/detections can occur
-* OCR errors on small or blurry text
-* Dense UI regions (toolbars, terminals) are difficult
-* Icon-only controls are hard to recognize
-* No visual relationship information (above, below, inside)
-* No scroll state or hidden element detection
-* No animation/loading state understanding
-* Limited understanding of images, charts, videos, or graphics (requires vision model)
-* Detection accuracy depends on screen resolution and UI scaling
-* Higher CPU usage during parsing
-* Not real-time on low-end hardware
-* Needs a vision model fallback for purely visual tasks
-
-**Overall:** Despite these limitations, it provides **far more reliable coordinates and structured UI information than using screenshots alone**, making it well-suited as the primary perception layer for desktop automation agents.
-
-
-> **Controller Contract**
->
-> Any automation agent consuming this output **must** enforce the controller contract defined in `technical_documentation.md`. Controllers should only execute actions on elements that satisfy the configured confidence threshold (default `0.6`) and validation rules.
+> **Controller Contract:** Agents **must** enforce the contract in `technical_documentation.md`. Only act on elements above confidence threshold (default `0.6`). Use `screen_text` for context, `elements` for interaction.
 
 ---
 
 # Features
 
-* Pixel-perfect element coordinates
-* Florence-2 visual grounding
-* High-quality OCR extraction
-* Windows UI Automation enrichment
-* Structured UI elements
-* Confidence-gated detections
-* Cursor context
-* Screen state detection
-* Automation-ready JSON
-* DPI-aware coordinate mapping
-* CPU-friendly execution
-* Fully offline
-* No cloud APIs required
-* Optimized for LLM desktop agents
+- Pixel-perfect coordinates via Florence-2
+- Dual-layer OCR (element + full-screen summary)
+- Windows UIA enrichment + cursor context
+- Confidence-gated detections + screen state
+- DPI-aware coordinate mapping
+- CPU-friendly, fully offline, no cloud APIs
+- Optimized for small local LLMs
 
 ---
 
-# When To Use SAM
+# When To Use SAM vs Vision Models
 
-SAM should be the **default perception layer** for desktop automation.
-
-Ideal for:
-
-* Buttons, Textboxes, Menus, Dropdowns, Tabs, Dialogs
-* Browser automation, Windows applications, File Explorer
-* Visual Studio Code, Office applications, Terminal
-* Desktop icons, Taskbar, Context menus
-* Reading UI text, Precise mouse interaction
+| Use SAM For | Use Vision Models For |
+| :--- | :--- |
+| Buttons, inputs, menus, tabs, dialogs | Photographs, videos, charts, diagrams |
+| Browser/native app/terminal automation | Game scenes, Canvas/WebGL, image editing |
+| Reading UI text, precise mouse interaction | Logos, colors, visual aesthetics, CAPTCHA |
+| Providing LLM context without screenshots | Any non-structured visual content |
 
 ---
 
-# When Vision Models Are Still Needed
+# Comparison of Approaches
 
-Vision models remain valuable for information that cannot be represented as structured UI.
-
-Examples include:
-
-* Photographs, Videos, Charts, Graphs, Diagrams, Maps
-* Image editing, Game scenes, Canvas / WebGL applications
-* Logos, Colors, Visual aesthetics, CAPTCHA
-
-SAM is designed to complement vision models rather than replace them.
-
----
-
-# Paradigm Comparison
-
-| Capability | Traditional UI Parser (UIA / Accessibility APIs) | Vision Language Models | SAM ScreenParser |
-|------------|--------------------------------------------------|------------------------|------------------|
-| Standard UI Detection | Excellent | Good | Excellent |
-| Custom / Canvas UI Detection | Poor | Excellent | Excellent |
-| OCR Text Extraction | No | Yes | Yes |
-| Pixel-perfect Coordinates | Limited | Approximate | Yes |
-| Click Coordinates | API-dependent | Estimated | Deterministic |
-| Works on Any Application | No | Yes | Yes |
-| Browser Support | Partial | Yes | Yes |
-| Desktop Support | Partial | Yes | Yes |
-| Games | Poor | Good | Good |
-| Canvas / WebGL | No | Yes | Yes |
-| Image Understanding | No | Excellent | Via Vision Fallback |
-| Graph / Chart Understanding | No | Excellent | Via Vision Fallback |
-| UI Semantics | Excellent | Medium | Excellent |
-| Coordinate Hallucination | None | Possible | None |
-| OCR Accuracy | None | Medium | High |
-| Controller-ready Output | Partial | No | Yes |
-| Structured JSON Output | Limited | No | Yes |
-| Confidence Scores | Rare | Limited | Yes |
-| Cursor Context | No | No | Yes |
-| Screen State Detection | No | Limited | Yes |
-| DPI-aware Coordinates | API-dependent | No | Yes |
-| Automation Safety | Medium | Low | High |
-| Token Usage | Very Low | Very High | Low |
-| CPU Usage | Very Low | High | Medium |
-| GPU Required | No | Usually | No |
-| Cloud Required | No | Often | No |
-| Offline Execution | Yes | Sometimes | Yes |
-| Deterministic Output | Yes | No | Yes |
-| Easy Debugging | Medium | Difficult | Excellent |
-| Small LLM Friendly | N/A | Poor | Excellent |
-| Local AI Friendly | Excellent | Limited | Excellent |
-| Multi-monitor Support | Limited | Yes | Yes |
-| Production Automation | Good | Poor | Excellent |
-| Designed for AI Agents | No | General Purpose | Yes |
-
----
-
-# Comparison of Screen Understanding Approaches
-
-If you have different hardware constraints or require deeper semantic reasoning, consider these alternative tools:
-
-| Tool | Architecture | VRAM Required | Speed (1080p) | Coordinate Accuracy | Semantic UI | Best For |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **SAM ScreenParser** | Florence-2 + Tesseract + UIA | 0 GB (CPU) | 70-90s | Pixel-perfect | Good (heuristic) | CPU-only laptops, privacy, offline |
-| **OmniParser v2** | YOLOv8 + PaddleOCR | 8-16 GB (GPU) | 1-3s | Pixel-perfect | Excellent (trained) | GPU workstations, production |
-| **UI-TARS-7B** | 7B VLM | 12-16 GB (GPU) | 5-10s | Approximate | Excellent | Complex GUI reasoning |
-| **OS-ATLAS-7B** | 7B GUI Specialist | 12-16 GB (GPU) | 5-10s | Good | Excellent | GUI automation with GPU |
-| **Qwen2.5-VL-7B** | 7B General VLM | 14-16 GB (GPU) | 10-20s | Approximate | Good | General vision tasks |
-| **Moondream2** | 1.6B VLM | 2-4 GB (GPU) | 10-15s | None | Good | Lightweight semantics |
-| **SeeClick** | 7B Grounding | 12-16 GB (GPU) | 5-10s | Good | Poor | Click-target detection |
-| **GPT-4o / ScreenAI** | Cloud API | Cloud | 3-5s | Approximate | Excellent | Cloud-first, no local compute |
-| **Pure UIA** | OS API | 0 GB | <1s | Exact (if avail) | Excellent | Native Windows apps only |
-| **OpenCV + Tesseract** | CV + OCR | 0 GB | 1-2s | Fragile | None | Fixed layouts, legacy |
+| Tool | VRAM | Speed | Coordinates | Semantic UI | Best For |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **SAM ScreenParser** | 0 GB (CPU) | 70-90s | Pixel-perfect | Good | CPU laptops, offline, privacy |
+| **OmniParser v2** | 8-16 GB GPU | 1-3s | Pixel-perfect | Excellent | GPU workstations, production |
+| **UI-TARS-7B** | 12-16 GB GPU | 5-10s | Approximate | Excellent | Complex GUI reasoning |
+| **OS-ATLAS-7B** | 12-16 GB GPU | 5-10s | Good | Excellent | GUI automation w/ GPU |
+| **Qwen2.5-VL-7B** | 14-16 GB GPU | 10-20s | Approximate | Good | General vision tasks |
+| **Moondream2** | 2-4 GB GPU | 10-15s | None | Good | Lightweight semantics |
+| **GPT-4o / ScreenAI** | Cloud | 3-5s | Approximate | Excellent | Cloud-first, no local compute |
+| **Pure UIA** | 0 GB | <1s | Exact (if avail) | Excellent | Native Windows apps only |
 
 ---
 
@@ -282,61 +122,29 @@ If you have different hardware constraints or require deeper semantic reasoning,
 
 ```powershell
 py -3.12 -m venv .venv
-
 .\.venv\Scripts\Activate.ps1
-
 pip install transformers==4.45.0 torch pillow timm einops pytesseract opencv-python uiautomation
 
-# Verify Tesseract installation
+# Verify Tesseract
 & "C:\Program Files\Tesseract-OCR\tesseract.exe" --version
 
 py screen_analyzer.py
 ```
 
----
-
-# Documentation
-
-Detailed documentation includes:
-
-* System architecture
-* Processing pipeline
-* Detection flow
-* JSON schema
-* Controller contract
-* Confidence rules
-* Coordinate mapping
-* DPI handling
-* Integration guide
-* Safety rules
-* Performance notes
-
-See:
-
-```text
-technical_documentation.md
-```
+Full documentation (schema, controller contract, DPI handling, integration guide): [`technical_documentation.md`](technical_documentation.md)
 
 ---
 
 # License & Credits
 
-This project builds upon the following open-source software:
-
-* Microsoft Research — Florence-2 (Apache 2.0)
-* Google — Tesseract OCR (Apache 2.0)
-* Hugging Face — Transformers (Apache 2.0)
-* OpenCV Project — OpenCV (Apache 2.0)
-* Microsoft — Windows UI Automation SDK
-
-Please refer to each project's respective license for complete terms.
+- Florence-2: Microsoft Research (Apache 2.0)
+- Tesseract OCR: Google (Apache 2.0)
+- Transformers: Hugging Face (Apache 2.0)
+- OpenCV: OpenCV Team (Apache 2.0)
+- UIAutomation: Microsoft Windows SDK
 
 ---
 
 # Vision
 
-The long-term goal of SAM ScreenParser is to provide a reliable perception layer for local AI desktop agents.
-
-Instead of forcing language models to repeatedly interpret screenshots, SAM exposes the desktop as structured, deterministic data that is easier to reason over, more efficient to process, and safer to automate.
-
-The result is a **parser-first architecture**, where structured UI understanding is the default and vision models are reserved only for genuinely visual tasks. This enables reliable desktop automation even with small local language models running on ordinary hardware.
+SAM exposes the desktop as structured, deterministic data with complete visible text context. This **parser-first architecture** enables reliable desktop automation with small local LLMs on ordinary hardware, reserving vision models only for genuinely visual tasks.
