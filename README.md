@@ -2,6 +2,11 @@
 
 > **Pixel-perfect screen understanding for AI desktop agents.**
 
+![Python](https://img.shields.io/badge/Python-3.12-blue)
+![License](https://img.shields.io/badge/License-Apache_2.0-green)
+![GPU](https://img.shields.io/badge/GPU-Not_Required-orange)
+![Offline](https://img.shields.io/badge/Cloud-Not_Required-yellow)
+
 > **Note on Naming**
 > **SAM** stands for **Screen Automation Manager** and is also a nod to the author's initials, **Sabir Ali Mondal**.
 > This project is completely independent and **is NOT related to Meta's Segment Anything Model (SAM).**
@@ -131,13 +136,38 @@ Instead of asking an LLM to rediscover the interface from pixels every time, SAM
 
 SAM intentionally refuses to guess.
 
-If an element cannot be identified with sufficient confidence, it is better to decline the action than click the wrong control.
+If an element cannot be identified with sufficient confidence, it is better to decline the action than click the wrong control. For example, a line number in a code editor that visually resembles an input field will be classified as `code_content` with low confidence and excluded from actionable output, rather than mislabeled as an editable input.
 
 This is a deliberate safety feature rather than a limitation.
 
+## Current Cons of SAM ScreenParser
+
+* Slow processing (45–90 seconds on CPU)
+* Small icons are often missed
+* Some UI elements are not detected
+* Nested elements may be missed
+* Weak semantic classification for some controls
+* No parent–child UI hierarchy
+* No Z-order (which window is on top)
+* Duplicate text/detections can occur
+* OCR errors on small or blurry text
+* Dense UI regions (toolbars, terminals) are difficult
+* Icon-only controls are hard to recognize
+* No visual relationship information (above, below, inside)
+* No scroll state or hidden element detection
+* No animation/loading state understanding
+* Limited understanding of images, charts, videos, or graphics (requires vision model)
+* Detection accuracy depends on screen resolution and UI scaling
+* Higher CPU usage during parsing
+* Not real-time on low-end hardware
+* Needs a vision model fallback for purely visual tasks
+
+**Overall:** Despite these limitations, it provides **far more reliable coordinates and structured UI information than using screenshots alone**, making it well-suited as the primary perception layer for desktop automation agents.
+
+
 > **Controller Contract**
 >
-> Any automation agent consuming this output **must** enforce the controller contract defined in `technical_documentation.md`. Controllers should only execute actions on elements that satisfy the configured confidence threshold and validation rules.
+> Any automation agent consuming this output **must** enforce the controller contract defined in `technical_documentation.md`. Controllers should only execute actions on elements that satisfy the configured confidence threshold (default `0.6`) and validation rules.
 
 ---
 
@@ -166,23 +196,11 @@ SAM should be the **default perception layer** for desktop automation.
 
 Ideal for:
 
-* Buttons
-* Textboxes
-* Menus
-* Dropdowns
-* Tabs
-* Dialogs
-* Browser automation
-* Windows applications
-* File Explorer
-* Visual Studio Code
-* Office applications
-* Terminal
-* Desktop icons
-* Taskbar
-* Context menus
-* Reading UI text
-* Precise mouse interaction
+* Buttons, Textboxes, Menus, Dropdowns, Tabs, Dialogs
+* Browser automation, Windows applications, File Explorer
+* Visual Studio Code, Office applications, Terminal
+* Desktop icons, Taskbar, Context menus
+* Reading UI text, Precise mouse interaction
 
 ---
 
@@ -192,25 +210,15 @@ Vision models remain valuable for information that cannot be represented as stru
 
 Examples include:
 
-* Photographs
-* Videos
-* Charts
-* Graphs
-* Diagrams
-* Maps
-* Image editing
-* Game scenes
-* Canvas / WebGL applications
-* Logos
-* Colors
-* Visual aesthetics
-* CAPTCHA
+* Photographs, Videos, Charts, Graphs, Diagrams, Maps
+* Image editing, Game scenes, Canvas / WebGL applications
+* Logos, Colors, Visual aesthetics, CAPTCHA
 
 SAM is designed to complement vision models rather than replace them.
 
 ---
 
-# Comparison
+# Paradigm Comparison
 
 | Capability | Traditional UI Parser (UIA / Accessibility APIs) | Vision Language Models | SAM ScreenParser |
 |------------|--------------------------------------------------|------------------------|------------------|
@@ -248,6 +256,25 @@ SAM is designed to complement vision models rather than replace them.
 | Multi-monitor Support | Limited | Yes | Yes |
 | Production Automation | Good | Poor | Excellent |
 | Designed for AI Agents | No | General Purpose | Yes |
+
+---
+
+# Comparison of Screen Understanding Approaches
+
+If you have different hardware constraints or require deeper semantic reasoning, consider these alternative tools:
+
+| Tool | Architecture | VRAM Required | Speed (1080p) | Coordinate Accuracy | Semantic UI | Best For |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **SAM ScreenParser** | Florence-2 + Tesseract + UIA | 0 GB (CPU) | 70-90s | Pixel-perfect | Good (heuristic) | CPU-only laptops, privacy, offline |
+| **OmniParser v2** | YOLOv8 + PaddleOCR | 8-16 GB (GPU) | 1-3s | Pixel-perfect | Excellent (trained) | GPU workstations, production |
+| **UI-TARS-7B** | 7B VLM | 12-16 GB (GPU) | 5-10s | Approximate | Excellent | Complex GUI reasoning |
+| **OS-ATLAS-7B** | 7B GUI Specialist | 12-16 GB (GPU) | 5-10s | Good | Excellent | GUI automation with GPU |
+| **Qwen2.5-VL-7B** | 7B General VLM | 14-16 GB (GPU) | 10-20s | Approximate | Good | General vision tasks |
+| **Moondream2** | 1.6B VLM | 2-4 GB (GPU) | 10-15s | None | Good | Lightweight semantics |
+| **SeeClick** | 7B Grounding | 12-16 GB (GPU) | 5-10s | Good | Poor | Click-target detection |
+| **GPT-4o / ScreenAI** | Cloud API | Cloud | 3-5s | Approximate | Excellent | Cloud-first, no local compute |
+| **Pure UIA** | OS API | 0 GB | <1s | Exact (if avail) | Excellent | Native Windows apps only |
+| **OpenCV + Tesseract** | CV + OCR | 0 GB | 1-2s | Fragile | None | Fixed layouts, legacy |
 
 ---
 
