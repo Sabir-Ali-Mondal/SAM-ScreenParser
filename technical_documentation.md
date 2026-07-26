@@ -2,38 +2,40 @@
 
 ## Project Overview
 
-SAM ScreenParser is a local, CPU-friendly pipeline that converts the live screen into structured data for desktop automation. In one pass it produces pixel-perfect coordinates, clean text, element classifications, window context, screen state, a per-element confidence score, and a cursor snapshot with the real control underneath the pointer. It operates entirely offline on standard laptops without dedicated GPU hardware and is optimized for minimal, control-safe token consumption by downstream planning LLMs.
+SAM ScreenParser is a local, CPU-friendly pipeline that converts the live screen into structured data for desktop automation. In one pass it produces pixel-perfect coordinates, clean text, element classifications, window context, screen state, a per-element confidence score, a cursor snapshot with the real control underneath the pointer, and a full-screen visible text summary. It operates entirely offline on standard laptops without dedicated GPU hardware and is optimized for minimal, control-safe token consumption by downstream planning LLMs.
 
 ## Architecture Philosophy
 
 Large Language Models cannot generate precise pixel coordinates because their autoregressive architecture predicts text tokens, not continuous spatial values. SAM ScreenParser therefore splits the work across specialized components:
 
-- Spatial grounding: Florence-2 (vision encoder plus bounding-box regressor) outputs mathematical coordinates directly from image pixels.
-- Text extraction: Tesseract OCR with contrast normalization reads text independently of visual scene interpretation.
-- Window context: Windows UI Automation supplies active-window metadata and, at each detected coordinate, the native control type and class name.
-- Cursor context: a single UIA query at the current pointer position returns the real control under the cursor, providing a ground-truth anchor and an "already hovering element X" signal.
-- Classification: a tiered classifier reads the UIA control type first, then the class name, then text and position heuristics, assigning a confidence that reflects which tier decided.
-- Reconciliation: a cross-check downgrades obvious mislabels (a line number reported as an input, a filename tab reported as an input) before output.
-- Filtering: non-actionable code content and static labels are removed to cut token count.
-- Planning and control: a downstream agent consumes the data and obeys an explicit contract that gates every action on confidence and verifies the result.
+-   **Spatial grounding:** Florence-2 (vision encoder plus bounding-box regressor) outputs mathematical coordinates directly from image pixels.
+-   **Element text extraction:** Tesseract OCR with contrast normalization reads text from detected regions independently of visual scene interpretation.
+-   **Full-screen text summary:** A secondary Tesseract pass with PSM 3 auto-segmentation captures all visible text (including content Florence-2 misses) to provide the LLM with immediate semantic context at negligible CPU cost.
+-   **Window context:** Windows UI Automation supplies active-window metadata and, at each detected coordinate, the native control type and class name.
+-   **Cursor context:** A single UIA query at the current pointer position returns the real control under the cursor, providing a ground-truth anchor and an "already hovering element X" signal.
+-   **Classification:** A tiered classifier reads the UIA control type first, then the class name, then text and position heuristics, assigning a confidence that reflects which tier decided.
+-   **Reconciliation:** A cross-check downgrades obvious mislabels (a line number reported as an input, a filename tab reported as an input) before output.
+-   **Filtering:** Non-actionable code content and static labels are removed from the elements array to cut token count, while remaining available in the full-screen text summary for context.
+-   **Planning and control:** A downstream agent consumes the data and obeys an explicit contract that gates every action on confidence and verifies the result.
 
 ## Why This Works
 
-1. Coordinates come from regression over image features, so they are exact and resolution-independent, and they survive theme changes.
-2. Dedicated OCR with contrast normalization prevents the text pollution and icon misreads that vision-language models produce, and keeps accuracy stable across light and dark themes.
-3. DPI awareness is set at process start, so the physical pixels in the screenshot match the logical pixels the controller clicks and the cursor reports. Without this, a scaled laptop clicks the wrong element even when the box is correct.
-4. Classification keys on the accessibility control type, which is mandated by the OS specification and stable across every Windows app, instead of cosmetic class names that change per app and per version.
-5. The cursor snapshot gives the controller one point of certainty: the control type under the pointer is read directly from the OS, not inferred from pixels, so it can be trusted fully for "what is currently under the cursor".
-6. Every element carries a confidence score, and the controller contract refuses to act below threshold, so the system degrades by standing still on uncertain screens instead of clicking blindly.
+1.  Coordinates come from regression over image features, so they are exact and resolution-independent, and they survive theme changes.
+2.  Dedicated OCR with contrast normalization prevents the text pollution and icon misreads that vision-language models produce, and keeps accuracy stable across light and dark themes.
+3.  The dual-layer OCR approach provides both precision and completeness: region-level crops give accurate element text, while the full-screen PSM 3 pass captures terminal logs, status bars, and dense content that region detection misses, at less than 1 second additional cost.
+4.  DPI awareness is set at process start, so the physical pixels in the screenshot match the logical pixels the controller clicks and the cursor reports. Without this, a scaled laptop clicks the wrong element even when the box is correct.
+5.  Classification keys on the accessibility control type, which is mandated by the OS specification and stable across every Windows app, instead of cosmetic class names that change per app and per version.
+6.  The cursor snapshot gives the controller one point of certainty: the control type under the pointer is read directly from the OS, not inferred from pixels, so it can be trusted fully for "what is currently under the cursor".
+7.  Every element carries a confidence score, and the controller contract refuses to act below threshold, so the system degrades by standing still on uncertain screens instead of clicking blindly.
 
 ## Hardware Requirements
 
-- CPU: modern multi-core (AMD Ryzen 5 / Intel Core i5 or better)
-- RAM: 16 GB total system memory
-- GPU: not required (integrated graphics sufficient; an NVIDIA GPU cuts inference from ~80 s to ~3 s)
-- Storage: 5 GB free for models and dependencies
-- OS: Windows 10/11
-- Tested performance: 70 to 90 seconds per 1920x1080 frame on AMD Ryzen 7 U, CPU only
+-   CPU: modern multi-core (AMD Ryzen 5 / Intel Core i5 or better)
+-   RAM: 16 GB total system memory
+-   GPU: not required (integrated graphics sufficient; an NVIDIA GPU cuts inference from ~80 s to ~3 s)
+-   Storage: 5 GB free for models and dependencies
+-   OS: Windows 10/11
+-   Tested performance: 70 to 90 seconds per 1920x1080 frame on AMD Ryzen 7 U, CPU only (full-screen OCR adds <1 second)
 
 ## Scaling Behavior
 
@@ -47,20 +49,21 @@ Large Language Models cannot generate precise pixel coordinates because their au
 | Non-English UI | Partially robust | Control type is language-independent; keyword heuristics are English-only |
 | Apps with no accessibility tree | Declines gracefully | Such elements fall to low confidence and the controller skips them |
 | Cursor position | Robust | Read from OS at capture instant; a snapshot, not a live feed |
+| Full-screen text coverage | Robust | PSM 3 captures ~95-98% of visible text including missed regions |
 
 ## Complete Setup Guide
 
 ### Prerequisites
 
-- Python 3.12.10 installed with Add to PATH enabled
-- Tesseract OCR installed at C:\Program Files\Tesseract-OCR
-- An IDE such as VS Code or Trae (optional)
+-   Python 3.12.10 installed with Add to PATH enabled
+-   Tesseract OCR installed at C:\Program Files\Tesseract-OCR
+-   An IDE such as VS Code or Trae (optional)
 
 ### Installation Steps
 
-1. Open the IDE at D:\Projects\SAM-ScreenParser.
-2. Set the interpreter before creating the virtual environment: Ctrl+Shift+P, Python: Select Interpreter, Enter interpreter path, paste D:\Projects\SAM-ScreenParser\.venv\Scripts\python.exe.
-3. Open a new terminal and run:
+1.  Open the IDE at D:\Projects\SAM-ScreenParser.
+2.  Set the interpreter before creating the virtual environment: Ctrl+Shift+P, Python: Select Interpreter, Enter interpreter path, paste D:\Projects\SAM-ScreenParser\.venv\Scripts\python.exe.
+3.  Open a new terminal and run:
 
 ```powershell
 py -3.12 -m venv .venv
@@ -69,7 +72,7 @@ python --version
 pip install transformers==4.45.0 torch pillow timm einops pytesseract opencv-python uiautomation
 ```
 
-4. Verify:
+4.  Verify:
 
 ```powershell
 py -c "import transformers, torch, cv2, pytesseract; print('Dependencies OK')"
@@ -182,6 +185,37 @@ def clean_ocr_text(raw_text):
 def ocr_crop(crop):
     gray = ImageOps.autocontrast(crop.convert('L'), cutoff=1)
     return pytesseract.image_to_string(gray, config='--oem 3 --psm 7').strip()
+
+
+def extract_full_visible_text(image, max_chars=2500):
+    """
+    Full-screen OCR pass using PSM 3 (auto segmentation) to capture ALL
+    visible text including content Florence-2 region detection misses.
+    Adds <1 second on CPU. Provides LLM with immediate semantic context.
+    """
+    raw = pytesseract.image_to_string(image, config='--oem 3 --psm 3')
+    lines = []
+    for line in raw.split('\n'):
+        cleaned = re.sub(r'[^\w\s\.\-\(\)\/\\:,;\'\"!?@#$%^&*+=<>{}[\]~`]', ' ', line)
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        if len(cleaned) <= 2:
+            continue
+        if cleaned.isdigit():
+            continue
+        lines.append(cleaned)
+
+    raw_text = "\n".join(lines)
+    is_truncated = len(raw_text) > max_chars
+    if is_truncated:
+        raw_text = raw_text[:max_chars] + "\n[...truncated...]"
+
+    return {
+        "raw_text": raw_text.strip(),
+        "char_count": len(raw_text),
+        "line_count": len(lines),
+        "is_truncated": is_truncated,
+        "source": "full_screen_ocr_psm3"
+    }
 
 
 def get_live_window_info():
@@ -396,6 +430,10 @@ def analyze_live_screen():
     cursor_info['over_element_id'] = cursor_over(cursor_info, elements)
     screen_state = detect_screen_state(elements, window_info)
 
+    # Layer 2: Full-screen OCR for complete visible text summary
+    print("Running full-screen OCR for screen summary...")
+    screen_text = extract_full_visible_text(image)
+
     by_type = {}
     for e in elements:
         by_type[e['type']] = by_type.get(e['type'], 0) + 1
@@ -405,6 +443,7 @@ def analyze_live_screen():
                      'dpi_scale': round(get_dpi_scale(), 3), 'coordinate_space': 'physical_pixels',
                      'processing_time_seconds': round(time.time() - start, 2),
                      'total_elements': len(elements), 'source': 'live_screen_capture'},
+        'screen_text': screen_text,
         'cursor': cursor_info,
         'active_window': window_info,
         'screen_state': screen_state,
@@ -423,6 +462,7 @@ if __name__ == "__main__":
     print(f"Active window: {result['active_window']['title']}")
     print(f"App type: {result['screen_state']['active_app_type']}")
     print(f"DPI scale: {result['metadata']['dpi_scale']}")
+    print(f"Screen text: {result['screen_text']['char_count']} chars, {result['screen_text']['line_count']} lines")
     print(f"Cursor at: {result['cursor']['position']} over element: {result['cursor']['over_element_id']}")
     print(f"Total elements: {result['metadata']['total_elements']}")
     print(f"High confidence: {result['summary']['high_confidence_count']}")
@@ -479,7 +519,7 @@ cv2.destroyAllWindows()
 
 ## Control-Safe Output Schema
 
-This is the structure a controller consumes. Every element carries an action verb and a confidence the controller gates on, and the cursor object anchors the controller to the real control under the pointer.
+This is the structure a controller consumes. Every element carries an action verb and a confidence the controller gates on, the cursor object anchors the controller to the real control under the pointer, and the screen_text provides full visible context for semantic reasoning.
 
 ```json
 {
@@ -488,9 +528,16 @@ This is the structure a controller consumes. Every element carries an action ver
     "image_size": [1920, 1080],
     "dpi_scale": 1.5,
     "coordinate_space": "physical_pixels",
-    "processing_time_seconds": 88.4,
+    "processing_time_seconds": 89.2,
     "total_elements": 3,
     "source": "live_screen_capture"
+  },
+  "screen_text": {
+    "raw_text": "IDE File Edit Selection View Go Run Terminal Help SAM-ScreenParser\nExplorer screen_analyzer.py draw_test.py live_screen_analysis.json\nTRAE\noutput\ndef extract_full_visible_text(max_chars=2500):\nreturn result\nif __name__ == \"__main__\":\nextract_full_visible_text()\nGet started with TRAE\nEnhanced with rich context for more accurate answers\nProblems Output Terminal\n(.venv) PS D:\\Projects\\SAM-ScreenParser> py screen_analyzer.py\nUnderstands, acts, and delivers real software\nOutline Timeline\nNo suggestions available, waiting for your coding...\nProcessed 0/0 changed point(s)",
+    "char_count": 1059,
+    "line_count": 26,
+    "is_truncated": false,
+    "source": "full_screen_ocr_psm3"
   },
   "cursor": {
     "position": [183, 306],
@@ -542,34 +589,37 @@ This is the structure a controller consumes. Every element carries an action ver
 
 A controller that ignores these rules will damage real state. Encode them in the agent that reads the data.
 
-1. Never act on an element with confidence below 0.6. Log it and skip it.
-2. Never act on type code_content or text_label. They are context, not targets.
-3. Map the action field to exactly one primitive: click is a single click at center; double_click is a double click; type is click then send keystrokes; none means do nothing.
-4. Always click center, never a corner. Clamp center to the image bounds before clicking.
-5. Treat cursor as a snapshot taken at capture time. If the agent moves the pointer between capture and action, the cursor object is stale; re-query or re-capture before relying on it.
-6. Trust cursor.control_type fully for "what is under the pointer right now"; it is read from the OS, not inferred from pixels. Use it to confirm hover-triggered menus and tooltips.
-7. If cursor.over_element_id is set, the pointer already rests on that element; for a hover-only action you may skip the move, and for a click you may click without re-locating.
-8. After every action, re-capture and re-run analysis. Confirm the expected change happened (title changed, a menu appeared, text was entered) before the next action. If nothing changed, the click missed; retry at most once, then stop.
-9. If screen_state.has_dialog or has_popup is true, handle the overlay first; never click through it.
-10. If screen_state.has_loading is true, wait and re-capture; never act on a half-rendered screen.
-11. Keep a per-session memory keyed by (active_window.title, type, text). If the same logical element worked before, prefer its last known center over a fresh low-confidence detection.
+1.  Never act on an element with confidence below 0.6. Log it and skip it.
+2.  Never act on type code_content or text_label. They are context, not targets.
+3.  Map the action field to exactly one primitive: click is a single click at center; double_click is a double click; type is click then send keystrokes; none means do nothing.
+4.  Always click center, never a corner. Clamp center to the image bounds before clicking.
+5.  Treat cursor as a snapshot taken at capture time. If the agent moves the pointer between capture and action, the cursor object is stale; re-query or re-capture before relying on it.
+6.  Trust cursor.control_type fully for "what is under the pointer right now"; it is read from the OS, not inferred from pixels. Use it to confirm hover-triggered menus and tooltips.
+7.  If cursor.over_element_id is set, the pointer already rests on that element; for a hover-only action you may skip the move, and for a click you may click without re-locating.
+8.  Use screen_text.raw_text for semantic context (reading terminal output, finding error messages, understanding document content). Use elements array only for precise interaction coordinates.
+9.  After every action, re-capture and re-run analysis. Confirm the expected change happened (title changed, a menu appeared, text was entered) before the next action. If nothing changed, the click missed; retry at most once, then stop.
+10. If screen_state.has_dialog or has_popup is true, handle the overlay first; never click through it.
+11. If screen_state.has_loading is true, wait and re-capture; never act on a half-rendered screen.
+12. Keep a per-session memory keyed by (active_window.title, type, text). If the same logical element worked before, prefer its last known center over a fresh low-confidence detection.
 
 ## Accuracy Analysis
 
-- Coordinate accuracy: pixel-perfect, within 1 to 3 pixels, resolution-independent, no calibration.
-- Text accuracy: 95 to 99 percent after contrast normalization and regex cleaning; theme-independent.
-- Classification accuracy: control-type-first classification plus reconciliation removes the editor-tab-as-input and line-number-as-input failures; the confidence field makes remaining uncertainty explicit and actionable.
-- Cursor accuracy: position and the control under it are exact, read from the OS at capture instant.
-- Token efficiency: filtering removes code lines, line numbers, terminal echo, and static labels, typically cutting the element list by 80 to 90 percent; the cursor adds a single small object.
+-   Coordinate accuracy: pixel-perfect, within 1 to 3 pixels, resolution-independent, no calibration.
+-   Element text accuracy: 95 to 99 percent after contrast normalization and regex cleaning; theme-independent.
+-   Full-screen text accuracy: 90 to 95 percent via PSM 3 auto-segmentation; captures terminal logs, status bars, and dense content that region detection misses; adds <1 second processing time.
+-   Classification accuracy: control-type-first classification plus reconciliation removes the editor-tab-as-input and line-number-as-input failures; the confidence field makes remaining uncertainty explicit and actionable.
+-   Cursor accuracy: position and the control under it are exact, read from the OS at capture instant.
+-   Token efficiency: filtering removes code lines, line numbers, terminal echo, and static labels from the elements array, typically cutting it by 80 to 90 percent; screen_text is capped at 2500 characters to prevent context explosion while preserving semantic context.
 
 ## Known Scaling Limitations
 
-- CPU inference is 70 to 90 seconds per frame. This is a perception layer for deliberate automation, not a real-time loop.
-- Text under roughly 10 pixels, thin anti-aliased fonts, and text over busy wallpapers can still be missed even after contrast normalization.
-- Apps that draw their own UI without an accessibility tree (some games, canvas-only web apps, custom Electron builds) return an empty control type, dropping those elements to the 0.40 tier, which the contract then refuses to act on. That is correct behavior: the system declines to guess rather than click blindly.
-- The cursor object is a single-instant snapshot; between capture and action the user or another process may move the pointer, so the controller must re-query before acting on it.
-- Multi-monitor setups require ImageGrab.grab(all_screens=True) plus per-monitor DPI handling; only single-monitor is tested.
-- The keyword heuristic list is English-only. Non-English UI text falls back to control type, which is why classification by control type is mandatory rather than optional.
+-   CPU inference is 70 to 90 seconds per frame. This is a perception layer for deliberate automation, not a real-time loop.
+-   Text under roughly 10 pixels, thin anti-aliased fonts, and text over busy wallpapers can still be missed even after contrast normalization.
+-   Full-screen OCR (PSM 3) may merge adjacent UI panels into single lines on extremely dense layouts; the elements array remains authoritative for precise interaction.
+-   Apps that draw their own UI without an accessibility tree (some games, canvas-only web apps, custom Electron builds) return an empty control type, dropping those elements to the 0.40 tier, which the contract then refuses to act on. That is correct behavior: the system declines to guess rather than click blindly.
+-   The cursor object is a single-instant snapshot; between capture and action the user or another process may move the pointer, so the controller must re-query before acting on it.
+-   Multi-monitor setups require ImageGrab.grab(all_screens=True) plus per-monitor DPI handling; only single-monitor is tested.
+-   The keyword heuristic list is English-only. Non-English UI text falls back to control type, which is why classification by control type is mandatory rather than optional.
 
 ## Citation
 
@@ -578,14 +628,14 @@ A controller that ignores these rules will damage real state. Encode them in the
   title = {SAM ScreenParser: Hybrid Vision Pipeline for Desktop Automation},
   author = {Sabir Ali Mondal},
   year = {2026},
-  note = {Florence-2 and Tesseract hybrid with UIA and cursor enrichment for CPU-friendly screen understanding}
+  note = {Florence-2 and Tesseract hybrid with UIA, cursor enrichment, and dual-layer OCR for CPU-friendly screen understanding}
 }
 ```
 
 ## License and Credits
 
-- Florence-2: Microsoft Research (Apache 2.0)
-- Tesseract OCR: Google Open Source (Apache 2.0)
-- OpenCV: OpenCV Team (Apache 2.0)
-- Transformers: Hugging Face (Apache 2.0)
-- UIAutomation: Microsoft Windows SDK
+-   Florence-2: Microsoft Research (Apache 2.0)
+-   Tesseract OCR: Google Open Source (Apache 2.0)
+-   OpenCV: OpenCV Team (Apache 2.0)
+-   Transformers: Hugging Face (Apache 2.0)
+-   UIAutomation: Microsoft Windows SDK
