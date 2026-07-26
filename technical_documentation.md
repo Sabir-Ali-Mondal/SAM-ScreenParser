@@ -1,105 +1,108 @@
-# SAM ScreenParser Technical Documentation
-
-## Project Overview
-
-SAM ScreenParser is a local, CPU-friendly pipeline that converts the live screen into structured data for desktop automation. In one pass it produces pixel-perfect coordinates, clean text, element classifications, window context, screen state, a per-element confidence score, a cursor snapshot with the real control underneath the pointer, and a full-screen visible text summary. It operates entirely offline on standard laptops without dedicated GPU hardware and is optimized for minimal, control-safe token consumption by downstream planning LLMs.
+# SAM ScreenParser — Technical Documentation
 
 ## Architecture Philosophy
 
-Large Language Models cannot generate precise pixel coordinates because their autoregressive architecture predicts text tokens, not continuous spatial values. SAM ScreenParser therefore splits the work across specialized components:
+A planning LLM must not be asked to emit pixel coordinates: an autoregressive model predicts tokens, not continuous values, so coordinates produced by an LLM are guesses. SAM ScreenParser therefore obtains coordinates from a *detector* and obtains semantics from the operating system and from deterministic rules, leaving the LLM to do the one thing it is good at — choosing *which* named element to act on and *in what order*.
 
--   **Spatial grounding:** Florence-2 (vision encoder plus bounding-box regressor) outputs mathematical coordinates directly from image pixels.
--   **Element text extraction:** Tesseract OCR with contrast normalization reads text from detected regions independently of visual scene interpretation.
--   **Full-screen text summary:** A secondary Tesseract pass with PSM 3 auto-segmentation captures all visible text (including content Florence-2 misses) to provide the LLM with immediate semantic context at negligible CPU cost.
--   **Window context:** Windows UI Automation supplies active-window metadata and, at each detected coordinate, the native control type and class name.
--   **Cursor context:** A single UIA query at the current pointer position returns the real control under the cursor, providing a ground-truth anchor and an "already hovering element X" signal.
--   **Classification:** A tiered classifier reads the UIA control type first, then the class name, then text and position heuristics, assigning a confidence that reflects which tier decided.
--   **Reconciliation:** A cross-check downgrades obvious mislabels (a line number reported as an input, a filename tab reported as an input) before output.
--   **Filtering:** Non-actionable code content and static labels are removed from the elements array to cut token count, while remaining available in the full-screen text summary for context.
--   **Planning and control:** A downstream agent consumes the data and obeys an explicit contract that gates every action on confidence and verifies the result.
+The perception engine is RapidOCR, which wraps PaddleOCR's text detector and recognizer behind ONNX Runtime. The detector is a region-proposal network that finds every text-like region in a **single parallel forward pass** and returns a tight bounding box, the text, and a read-confidence for each. Because it is a detector and not an autoregressive model, it has no token budget to overflow, so a dense screen — a slide deck, a dashboard, an IDE — yields *more* elements rather than being silently truncated.
+
+On top of the detector, three cheap sources add semantics:
+
+-   **Windows UI Automation**, queried at each detected center, supplies the OS's own control type and class name — ground truth on native applications.
+-   **A deterministic classifier** maps control type, then class name, then text and position heuristics to an element type and a confidence that records which tier decided.
+-   **A cursor query** reads the real control under the pointer at capture time.
+
+A **reconciliation** cross-check downgrades obvious mislabels, a **filter** removes non-actionable context from the element list, and the **two-table split** strips every pixel field and every debug-only string before the data reaches the LLM. The verb rule is factored out of the per-element payload into a one-time legend, and cross-frame identity is factored out of the perception ids into controller memory. The downstream agent consumes the semantic table, plans by id, and obeys an explicit contract that gates every action on confidence, validates every volunteered verb, resolves ids against the coordinate table of the same snapshot, and verifies the result.
 
 ## Why This Works
 
-1.  Coordinates come from regression over image features, so they are exact and resolution-independent, and they survive theme changes.
-2.  Dedicated OCR with contrast normalization prevents the text pollution and icon misreads that vision-language models produce, and keeps accuracy stable across light and dark themes.
-3.  The dual-layer OCR approach provides both precision and completeness: region-level crops give accurate element text, while the full-screen PSM 3 pass captures terminal logs, status bars, and dense content that region detection misses, at less than 1 second additional cost.
-4.  DPI awareness is set at process start, so the physical pixels in the screenshot match the logical pixels the controller clicks and the cursor reports. Without this, a scaled laptop clicks the wrong element even when the box is correct.
-5.  Classification keys on the accessibility control type, which is mandated by the OS specification and stable across every Windows app, instead of cosmetic class names that change per app and per version.
-6.  The cursor snapshot gives the controller one point of certainty: the control type under the pointer is read directly from the OS, not inferred from pixels, so it can be trusted fully for "what is currently under the cursor".
-7.  Every element carries a confidence score, and the controller contract refuses to act below threshold, so the system degrades by standing still on uncertain screens instead of clicking blindly.
+1.  Coordinates come from a detector's region proposals, so they are tight on text (1–3 px), resolution-independent, and survive theme changes; RapidOCR's internal preprocessing handles light and dark themes without a manual contrast step.
+2.  Detection is parallel and has no token ceiling, so dense screens are a strength, not a failure case.
+3.  The full-screen visible-text summary is a free byproduct of the same sweep (the joined texts), so the LLM gets semantic context without a second OCR pass.
+4.  The two-table interface removes all pixel fields from the LLM's view, so the model's context carries only the information it can actually use to plan; the executor owns the pixels and clicks deterministically. Because the LLM cannot see coordinates, it physically cannot hallucinate one — a wrong target becomes an unknown id that the executor refuses.
+5.  The verb legend states the type-to-verb rule a single time instead of repeating `"action"` on every element, so the per-element payload shrinks while small local models still see the rule explicitly rather than having to infer it.
+6.  Perception ids are unique within a snapshot by construction, so the executor's id-to-element map can never collide; cross-frame reference is handled by controller memory that re-resolves against the current frame, so a coordinate is never trusted across frames.
+7.  DPI awareness is set at process start, so the physical pixels in the capture match the logical pixels the executor clicks and the cursor reports; without this a scaled display clicks the wrong target even when the box is right.
+8.  Classification keys on the accessibility control type — mandated by the OS and stable across every Windows app — before falling back to cosmetic class names and then to heuristics.
+9.  The cursor snapshot is one point of certainty read from the OS, not inferred from pixels, so the controller can trust "what is under the pointer right now."
+10. Every element carries a confidence score, and the contract refuses to act below threshold, on an unknown id, or on a verb the element does not support, so the system degrades by standing still on uncertain screens instead of clicking blindly.
 
 ## Hardware Requirements
 
 -   CPU: modern multi-core (AMD Ryzen 5 / Intel Core i5 or better)
--   RAM: 16 GB total system memory
--   GPU: not required (integrated graphics sufficient; an NVIDIA GPU cuts inference from ~80 s to ~3 s)
--   Storage: 5 GB free for models and dependencies
+-   RAM: 16 GB total system memory; peak process usage roughly 2–4 GB (no large vision model resident)
+-   GPU: not required; ONNX Runtime uses the CPU by default (an NVIDIA GPU via the ONNX CUDA execution provider cuts the sweep to well under a second)
+-   Storage: roughly 1 GB free for the OCR models and dependencies
 -   OS: Windows 10/11
--   Tested performance: 70 to 90 seconds per 1920x1080 frame on AMD Ryzen 7 U, CPU only (full-screen OCR adds <1 second)
+-   Tested performance: roughly 4–5 s for the OCR sweep plus 1–2 s of per-center UIA over 30–50 boxes, i.e. about **6–8 s per 1920×1080 frame** on an AMD Ryzen 7 U, CPU only
 
 ## Scaling Behavior
 
 | Dimension | Behavior | Notes |
 | :--- | :--- | :--- |
-| Screen resolution | Robust | Coordinates map to true image size |
-| DPI / display scaling | Robust after Fix 1 | DPI awareness set at process start |
-| Light vs dark theme | Robust after Fix 3 | Contrast normalization before OCR |
-| Different apps | Robust after Fix 2 | Classification by control type, not class name |
-| Different fonts / ClearType | Mostly robust | Coordinates survive; very thin fonts may drop OCR |
+| Screen resolution | Robust | Detector boxes map to the true image size |
+| Dense screens | Robust | Parallel detector; no truncation under load |
+| DPI / display scaling | Robust | DPI awareness set at process start |
+| Light vs dark theme | Robust | RapidOCR's internal preprocessing handles both |
+| Different applications | Robust | Classification by control type, not class name |
+| Different fonts / ClearType | Mostly robust | Coordinates survive; very thin fonts may drop |
 | Non-English UI | Partially robust | Control type is language-independent; keyword heuristics are English-only |
-| Apps with no accessibility tree | Declines gracefully | Such elements fall to low confidence and the controller skips them |
-| Cursor position | Robust | Read from OS at capture instant; a snapshot, not a live feed |
-| Full-screen text coverage | Robust | PSM 3 captures ~95-98% of visible text including missed regions |
+| Apps with no accessibility tree | Declines gracefully | Such elements fall to the low-confidence tier and the contract skips them |
+| Cursor position | Robust | Read from the OS at capture instant; a snapshot, not a live feed |
+| Full-screen text coverage | Robust | The sweep itself is the summary; about 95–98% of visible text |
+| Cross-frame identity | Robust | Handled by controller memory that re-resolves against the current frame |
 
 ## Complete Setup Guide
 
 ### Prerequisites
 
 -   Python 3.12.10 installed with Add to PATH enabled
--   Tesseract OCR installed at C:\Program Files\Tesseract-OCR
 -   An IDE such as VS Code or Trae (optional)
+-   No Tesseract install required; no PyTorch required
 
 ### Installation Steps
 
-1.  Open the IDE at D:\Projects\SAM-ScreenParser.
-2.  Set the interpreter before creating the virtual environment: Ctrl+Shift+P, Python: Select Interpreter, Enter interpreter path, paste D:\Projects\SAM-ScreenParser\.venv\Scripts\python.exe.
+1.  Open the IDE at `D:\Projects\SAM-ScreenParser`.
+2.  Set the interpreter before creating the virtual environment: Ctrl+Shift+P → Python: Select Interpreter → Enter interpreter path → paste `D:\Projects\SAM-ScreenParser\.venv\Scripts\python.exe`.
 3.  Open a new terminal and run:
 
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python --version
-pip install transformers==4.45.0 torch pillow timm einops pytesseract opencv-python uiautomation
+pip install rapidocr_onnxruntime opencv-python pillow numpy uiautomation
 ```
 
 4.  Verify:
 
 ```powershell
-py -c "import transformers, torch, cv2, pytesseract; print('Dependencies OK')"
-& "C:\Program Files\Tesseract-OCR\tesseract.exe" --version
+py -c "from rapidocr_onnxruntime import RapidOCR; import cv2, numpy, uiautomation; print('Dependencies OK')"
 ```
 
-The version check must print Python 3.12.x. If it prints 3.14, the activation failed; do not install packages until it shows 3.12.
+The version check must print Python 3.12.x. If it prints 3.14, the activation failed; do not install packages until it shows 3.12. RapidOCR downloads its ONNX models automatically on first use.
 
 ## Version Maintenance Guide
 
-### Pinned Versions
+### Tested Versions
 
-| Package | Version | Reason |
+The OCR stack is far less version-sensitive than a PyTorch vision stack. These are tested-good versions, not brittle pins:
+
+| Package | Tested | Reason |
 | :--- | :--- | :--- |
-| Python | 3.12.x | 3.14 lacks Rust binding support for tokenizers |
-| transformers | 4.45.0 | First stable release with the Florence-2 auto-map |
-| torch | 2.13.x | Stable wheels for Python 3.12 |
-| Tesseract | 5.5.x | Best accuracy on UI fonts |
+| Python | 3.12.x | 3.14 lacks Rust binding support in some dependencies |
+| rapidocr_onnxruntime | 1.3.x | PaddleOCR models on ONNX Runtime; CPU-friendly |
+| opencv-python | 4.10.x | Drawing and color conversion |
+| numpy | 1.26.x / 2.x | Array handling |
+| uiautomation | 2.0.x | Windows accessibility queries |
 
 ### Updating Dependencies
 
-Never run a blind upgrade. Test in a throwaway environment first:
+Test in a throwaway environment first:
 
 ```powershell
 py -3.12 -m venv .venv-test
 .\.venv-test\Scripts\Activate.ps1
-pip install transformers==<new_version> torch pillow timm einops
+pip install rapidocr_onnxruntime opencv-python pillow numpy uiautomation
 py screen_analyzer.py
 ```
 
@@ -113,11 +116,7 @@ cmd /c "rmdir /s /q D:\Projects\SAM-ScreenParser\.venv"
 py -3.12 -m venv .venv
 ```
 
-The rmdir step fails with access denied when an IDE holds python.exe open. Closing the IDE first is mandatory; restarting the machine is the fallback if the lock persists.
-
-### Python Version Migration
-
-Install the new interpreter, delete .venv, recreate with the new py launcher, reinstall pinned dependencies, and confirm pytesseract.pytesseract.tesseract_cmd still points at the installed Tesseract.
+The rmdir step fails with access denied when an IDE holds `python.exe` open. Closing the IDE first is mandatory; restarting the machine is the fallback if the lock persists.
 
 ## Codebase
 
@@ -130,7 +129,8 @@ SAM-ScreenParser/
 ├── output/
 ├── screen_analyzer.py
 ├── draw_test.py
-├── live_screen_analysis.json
+├── live_screen_analysis.json     # coordinate table (executor + humans + tooling)
+├── live_screen_compact.json      # semantic table (the LLM input)
 └── technical_documentation.md
 ```
 
@@ -142,27 +142,44 @@ import re
 import json
 import time
 import ctypes
+import numpy as np
+import cv2
 from datetime import datetime
-from PIL import Image, ImageGrab, ImageOps
-import torch
-import pytesseract
+from PIL import ImageGrab
 import uiautomation as auto
-from transformers import AutoProcessor, AutoModelForCausalLM
+from rapidocr_onnxruntime import RapidOCR
 
-# DPI awareness first, before any screen query, so physical and logical pixels agree.
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
 except Exception:
     ctypes.windll.user32.SetProcessDPIAware()
 
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+OCR = RapidOCR()
 
 CODE_PATTERNS = ['def ', 'class ', 'import ', 'from ', 'return ', 'with ',
                  'print(', 'json.', 'result[', '.get(', '.append(', 'self.']
 BUTTON_WORDS = ['new', 'save', 'delete', 'submit', 'cancel', 'ok', 'yes', 'no',
                 'upload', 'download', 'send', 'search', 'open', 'close', 'back',
                 'next', 'previous', 'refresh', 'sort', 'view', 'details', 'share']
+
+# Verb rule stated ONCE (system prompt), not repeated per element.
+VERB_LEGEND = (
+    "VERB RULES by element.type: "
+    "button|tab|sidebar_item|window_control|taskbar_item|column_header|path_bar -> click; "
+    "input -> click or type; desktop_icon -> double_click; terminal -> click or read; "
+    "any -> none (no-op). To act, emit {\"target_id\": <id>} and optionally \"input\" for text "
+    "or \"action\" to override; an override is accepted only if allowed for that type.")
+
+VERBS_BY_TYPE = {
+    'button': {'click'}, 'tab': {'click'}, 'sidebar_item': {'click'},
+    'window_control': {'click'}, 'taskbar_item': {'click'},
+    'column_header': {'click'}, 'path_bar': {'click'},
+    'input': {'click', 'type'}, 'desktop_icon': {'double_click'},
+    'terminal': {'click', 'read'}}
+
+
+def allowed_verbs(el_type):
+    return VERBS_BY_TYPE.get(el_type, set()) | {'none', 'read'}
 
 
 def get_dpi_scale():
@@ -172,50 +189,9 @@ def get_dpi_scale():
         return 1.0
 
 
-def clean_ocr_text(raw_text):
-    garbage = ['Bm', 'im', 'sb', 'g ', 'am', 'ie', 'ES', 'MM', 'aw', 'x', 'v ']
-    cleaned = raw_text.strip()
-    for g in garbage:
-        if cleaned.startswith(g):
-            cleaned = cleaned[len(g):].strip()
-    cleaned = re.sub(r'[^\w\s\.\-\(\)\/\\:]', ' ', cleaned)
-    return re.sub(r'\s+', ' ', cleaned).strip()
-
-
-def ocr_crop(crop):
-    gray = ImageOps.autocontrast(crop.convert('L'), cutoff=1)
-    return pytesseract.image_to_string(gray, config='--oem 3 --psm 7').strip()
-
-
-def extract_full_visible_text(image, max_chars=2500):
-    """
-    Full-screen OCR pass using PSM 3 (auto segmentation) to capture ALL
-    visible text including content Florence-2 region detection misses.
-    Adds <1 second on CPU. Provides LLM with immediate semantic context.
-    """
-    raw = pytesseract.image_to_string(image, config='--oem 3 --psm 3')
-    lines = []
-    for line in raw.split('\n'):
-        cleaned = re.sub(r'[^\w\s\.\-\(\)\/\\:,;\'\"!?@#$%^&*+=<>{}[\]~`]', ' ', line)
-        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-        if len(cleaned) <= 2:
-            continue
-        if cleaned.isdigit():
-            continue
-        lines.append(cleaned)
-
-    raw_text = "\n".join(lines)
-    is_truncated = len(raw_text) > max_chars
-    if is_truncated:
-        raw_text = raw_text[:max_chars] + "\n[...truncated...]"
-
-    return {
-        "raw_text": raw_text.strip(),
-        "char_count": len(raw_text),
-        "line_count": len(lines),
-        "is_truncated": is_truncated,
-        "source": "full_screen_ocr_psm3"
-    }
+def clean_text(raw):
+    c = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', ' ', raw.strip())
+    return re.sub(r'\s+', ' ', c).strip()
 
 
 def get_live_window_info():
@@ -223,31 +199,24 @@ def get_live_window_info():
         fg = auto.GetForegroundControl()
         r = fg.BoundingRectangle
         return {'title': fg.Name or 'Unknown', 'class': fg.ClassName or 'Unknown',
-                'automation_id': fg.AutomationId or '',
-                'bounds': [r.left, r.top, r.right, r.bottom],
-                'width': r.width(), 'height': r.height()}
+                'bounds': [r.left, r.top, r.right, r.bottom]}
     except Exception:
-        return None
+        return {'title': 'Unknown', 'class': 'Unknown', 'bounds': [0, 0, 0, 0]}
 
 
 def get_cursor_info():
     try:
         x, y = auto.GetCursorPos()
         c = auto.ControlFromPoint(x, y)
-        r = c.BoundingRectangle
         return {'position': [x, y], 'text': (c.Name or '')[:80],
-                'control_type': c.ControlTypeName or 'unknown',
-                'class_name': c.ClassName or 'unknown',
-                'bounds': [r.left, r.top, r.right, r.bottom],
-                'over_element_id': None}
+                'control_type': c.ControlTypeName or 'unknown', 'over_element_id': None}
     except Exception:
         try:
             x, y = auto.GetCursorPos()
             pos = [x, y]
         except Exception:
             pos = [-1, -1]
-        return {'position': pos, 'text': '', 'control_type': 'unknown',
-                'class_name': 'unknown', 'bounds': [], 'over_element_id': None}
+        return {'position': pos, 'text': '', 'control_type': 'unknown', 'over_element_id': None}
 
 
 def get_uia_at_point(x, y):
@@ -294,7 +263,6 @@ def classify_element(text, bounds, H, control_type, class_name):
     r = classify_by_control_type(control_type)
     if r:
         return {**r, 'confidence': 0.90}
-
     r = classify_by_class_name(class_name)
     if r:
         return {**r, 'confidence': 0.75}
@@ -361,12 +329,8 @@ def detect_screen_state(elements, window_info):
     return state
 
 
-def filter_elements_for_llm(elements):
-    out = []
-    for e in elements:
-        if e['interactive'] and e['type'] not in ('code_content', 'text_label'):
-            out.append(e)
-    return out
+def filter_elements(elements):
+    return [e for e in elements if e['interactive'] and e['type'] not in ('code_content', 'text_label')]
 
 
 def cursor_over(cursor_info, elements):
@@ -380,41 +344,47 @@ def cursor_over(cursor_info, elements):
     return None
 
 
+def compact_for_llm(r):
+    """Semantic table: what the LLM receives. NO coordinate fields, NO per-element verb.
+    The verb rule is supplied once via VERB_LEGEND in the system prompt; the executor
+    derives the default verb from the coordinate table and validates any override."""
+    return {
+        'active_window_title': r['active_window']['title'],
+        'app_type': r['screen_state']['active_app_type'],
+        'screen_state': {k: r['screen_state'][k] for k in
+                         ('has_dialog', 'has_loading', 'has_popup', 'is_empty')},
+        'cursor': {'text': r['cursor'].get('text', ''),
+                   'control_type': r['cursor']['control_type'],
+                   'over_element_id': r['cursor']['over_element_id']},
+        'screen_text': r['screen_text']['raw_text'],
+        'elements': [{'id': e['id'], 'text': e['text'], 'type': e['type'],
+                      'confidence': e['confidence']} for e in r['elements']]}
+
+
 def analyze_live_screen():
     start = time.time()
     print("Capturing live screen...")
-    shot = ImageGrab.grab(all_screens=False)
-    W, H = shot.size
-    image = shot.convert("RGB")
+    grab = ImageGrab.grab(all_screens=False)
+    W, H = grab.size
+    bgr = cv2.cvtColor(np.array(grab), cv2.COLOR_RGB2BGR)
     cursor_info = get_cursor_info()
-
-    window_info = get_live_window_info() or {
-        'title': 'Unknown', 'class': 'Unknown', 'automation_id': '',
-        'bounds': [0, 0, W, H], 'width': W, 'height': H}
+    window_info = get_live_window_info()
     print(f"Active window: {window_info['title']} ({window_info['class']})")
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = AutoModelForCausalLM.from_pretrained(
-        "microsoft/Florence-2-base", trust_remote_code=True, torch_dtype=torch.float32).to(device)
-    processor = AutoProcessor.from_pretrained("microsoft/Florence-2-base", trust_remote_code=True)
+    print("Running RapidOCR sweep...")
+    results, _ = OCR(bgr)
+    results = results or []
 
-    print("Detecting text regions...")
-    prompt = "<OCR_WITH_REGION>"
-    inputs = processor(text=prompt, images=image, return_tensors="pt").to(device)
-    ids = model.generate(input_ids=inputs["input_ids"], pixel_values=inputs["pixel_values"],
-                         max_new_tokens=2048, num_beams=3, do_sample=False)
-    gen = processor.batch_decode(ids, skip_special_tokens=False)[0]
-    parsed = processor.post_process_generation(gen, task=prompt, image_size=(W, H))
-
-    print("Extracting text and enriching with UIA data...")
-    elements = []
-    for i, box in enumerate(parsed[prompt].get("quad_boxes", [])):
-        x1 = int(min(box[0], box[2], box[4], box[6])); y1 = int(min(box[1], box[3], box[5], box[7]))
-        x2 = int(max(box[0], box[2], box[4], box[6])); y2 = int(max(box[1], box[3], box[5], box[7]))
-        x1, y1 = max(0, x1 - 2), max(0, y1 - 2); x2, y2 = min(W, x2 + 2), min(H, y2 + 2)
-        text = clean_ocr_text(ocr_crop(image.crop((x1, y1, x2, y2))))
+    print(f"Detected {len(results)} text regions. Enriching with UIA...")
+    elements, texts = [], []
+    for i, item in enumerate(results):
+        box = np.array(item[0], dtype=np.int32)
+        text = clean_text(item[1])
         if not text or len(text) <= 1:
             continue
+        x1, y1 = int(box[:, 0].min()), int(box[:, 1].min())
+        x2, y2 = int(box[:, 0].max()), int(box[:, 1].max())
+        texts.append(text)
         cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
         control_type, class_name = get_uia_at_point(cx, cy)
         c = classify_element(text, [x1, y1, x2, y2], H, control_type, class_name)
@@ -426,13 +396,15 @@ def analyze_live_screen():
         el['action'] = action_for(el['state'], el['interactive'])
         elements.append(el)
 
-    elements = filter_elements_for_llm(elements)
+    elements = filter_elements(elements)
     cursor_info['over_element_id'] = cursor_over(cursor_info, elements)
     screen_state = detect_screen_state(elements, window_info)
 
-    # Layer 2: Full-screen OCR for complete visible text summary
-    print("Running full-screen OCR for screen summary...")
-    screen_text = extract_full_visible_text(image)
+    joined = "\n".join(texts)
+    trunc = len(joined) > 2500
+    screen_text = {'raw_text': (joined[:2500] + "\n[...truncated...]" if trunc else joined).strip(),
+                   'char_count': len(joined), 'line_count': len(texts),
+                   'is_truncated': trunc, 'source': 'rapidocr_sweep'}
 
     by_type = {}
     for e in elements:
@@ -441,15 +413,14 @@ def analyze_live_screen():
     return {
         'metadata': {'timestamp': datetime.now().isoformat(), 'image_size': [W, H],
                      'dpi_scale': round(get_dpi_scale(), 3), 'coordinate_space': 'physical_pixels',
-                     'processing_time_seconds': round(time.time() - start, 2),
+                     'detector': 'RapidOCR', 'processing_time_seconds': round(time.time() - start, 2),
                      'total_elements': len(elements), 'source': 'live_screen_capture'},
-        'screen_text': screen_text,
-        'cursor': cursor_info,
         'active_window': window_info,
         'screen_state': screen_state,
+        'screen_text': screen_text,
+        'cursor': cursor_info,
         'elements': elements,
         'summary': {'interactive_count': sum(1 for e in elements if e['interactive']),
-                    'static_count': sum(1 for e in elements if not e['interactive']),
                     'high_confidence_count': sum(1 for e in elements if e['confidence'] >= 0.6),
                     'by_type': by_type}}
 
@@ -458,16 +429,20 @@ if __name__ == "__main__":
     result = analyze_live_screen()
     with open("live_screen_analysis.json", "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
+    compact = compact_for_llm(result)
+    with open("live_screen_compact.json", "w", encoding="utf-8") as f:
+        json.dump(compact, f, indent=2)
+
+    full_chars = len(json.dumps(result))
+    compact_chars = len(json.dumps(compact))
     print(f"\nLive analysis complete in {result['metadata']['processing_time_seconds']}s")
-    print(f"Active window: {result['active_window']['title']}")
-    print(f"App type: {result['screen_state']['active_app_type']}")
-    print(f"DPI scale: {result['metadata']['dpi_scale']}")
+    print(f"Active window: {result['active_window']['title']}  |  App: {result['screen_state']['active_app_type']}")
+    print(f"Elements: {result['metadata']['total_elements']}  |  High confidence: {result['summary']['high_confidence_count']}")
     print(f"Screen text: {result['screen_text']['char_count']} chars, {result['screen_text']['line_count']} lines")
-    print(f"Cursor at: {result['cursor']['position']} over element: {result['cursor']['over_element_id']}")
-    print(f"Total elements: {result['metadata']['total_elements']}")
-    print(f"High confidence: {result['summary']['high_confidence_count']}")
-    print(f"Element types: {result['summary']['by_type']}")
-    print("Saved to: live_screen_analysis.json")
+    print(f"Cursor over element {result['cursor']['over_element_id']} ({result['cursor']['control_type']})")
+    print(f"JSON size  coordinate_table={full_chars} chars  semantic_table={compact_chars} chars  "
+          f"(LLM payload is {100 - round(100 * compact_chars / max(full_chars, 1))}% smaller)")
+    print("Saved live_screen_analysis.json (coordinate table) and live_screen_compact.json (semantic table)")
 ```
 
 ### draw_test.py
@@ -517,125 +492,246 @@ cv2.waitKey(0)
 cv2.destroyAllWindows()
 ```
 
-## Control-Safe Output Schema
+## The Two-Table Interface
 
-This is the structure a controller consumes. Every element carries an action verb and a confidence the controller gates on, the cursor object anchors the controller to the real control under the pointer, and the screen_text provides full visible context for semantic reasoning.
+One analysis pass produces one set of elements; that set is projected two ways that share the element `id`.
+
+-   The **coordinate table** (`live_screen_analysis.json`) is the complete artifact. It holds every pixel field (`bounds`, `center`), the image size, the cursor's pixel position, the raw UIA strings, and the derived default `action`. Humans, `draw_test.py`, and the executor read this file.
+-   The **semantic table** (`live_screen_compact.json`) is what the planning LLM receives. It holds ids, names, types, confidences, the screen-state flags, the cursor's *semantic* identity, and the screen text. It holds **no pixel field and no per-element verb**.
+
+The LLM plans by referring to ids and names. The executor resolves an id to a pixel by looking it up in the coordinate table from the **same** snapshot. Because the two tables are generated together, their ids align exactly.
+
+### Field retention
+
+| Field | Coordinate table | Semantic table (LLM) | Reason |
+| :--- | :--- | :--- | :--- |
+| id | yes | yes | the handle the LLM plans with and the executor resolves |
+| text | yes | yes | the LLM matches targets by name |
+| type | yes | yes | the contract gates on it; the legend keys on it |
+| confidence | yes | yes | the gate threshold |
+| action (default verb) | yes | **no** | derived per element; the rule itself is the one-time legend |
+| center | yes | **no** | execution-only pixel; resolved by id at click time |
+| bounds | yes | no | needed for drawing and region logic, not for clicking |
+| image_size | yes (metadata) | no | executor reads it to clamp; the LLM never needs it |
+| element control_type | yes | no | classifier input / debug; its result already lives in `type` |
+| element class_name | yes | no | long noisy string; pure token cost for the LLM |
+| cursor.position | yes | **no** | a pixel; the LLM needs the cursor's identity, not its coordinate |
+| cursor.text / control_type | yes | yes | semantic identity of what is under the pointer |
+| cursor.over_element_id | yes | yes | an id, not a pixel; tells the LLM what the pointer rests on |
+| interactive / state | yes | no | constant after filtering / fully encoded by the verb; not sent to the LLM |
+| verb rule (legend) | n/a | **once, in system prompt** | stated a single time instead of per element |
+
+### Semantic element (LLM input)
+
+```json
+{ "id": 4, "text": "Explorer", "type": "sidebar_item", "confidence": 0.90 }
+```
+
+### Coordinate element (executor)
+
+```json
+{ "id": 4, "text": "Explorer", "type": "sidebar_item", "action": "click",
+  "confidence": 0.90, "control_type": "Button",
+  "class_name": "sidebar-entry-fixed-list-content",
+  "bounds": [64, 65, 135, 86], "center": [99, 75] }
+```
+
+### Semantic document (the LLM prompt payload)
 
 ```json
 {
-  "metadata": {
-    "timestamp": "2026-07-26T13:10:00",
-    "image_size": [1920, 1080],
-    "dpi_scale": 1.5,
-    "coordinate_space": "physical_pixels",
-    "processing_time_seconds": 89.2,
-    "total_elements": 3,
-    "source": "live_screen_capture"
-  },
-  "screen_text": {
-    "raw_text": "IDE File Edit Selection View Go Run Terminal Help SAM-ScreenParser\nExplorer screen_analyzer.py draw_test.py live_screen_analysis.json\nTRAE\noutput\ndef extract_full_visible_text(max_chars=2500):\nreturn result\nif __name__ == \"__main__\":\nextract_full_visible_text()\nGet started with TRAE\nEnhanced with rich context for more accurate answers\nProblems Output Terminal\n(.venv) PS D:\\Projects\\SAM-ScreenParser> py screen_analyzer.py\nUnderstands, acts, and delivers real software\nOutline Timeline\nNo suggestions available, waiting for your coding...\nProcessed 0/0 changed point(s)",
-    "char_count": 1059,
-    "line_count": 26,
-    "is_truncated": false,
-    "source": "full_screen_ocr_psm3"
-  },
-  "cursor": {
-    "position": [183, 306],
-    "text": "live_screen_analysis.json",
-    "control_type": "TreeItem",
-    "class_name": "prc-TreeView-TreeViewItem-Ter5f",
-    "bounds": [85, 295, 281, 317],
-    "over_element_id": 26
-  },
-  "active_window": {
-    "title": "screen_analyzer.py - SAM-ScreenParser - Trae",
-    "class": "Chrome_WidgetWin_1"
-  },
-  "screen_state": {
-    "active_app_type": "ide",
-    "has_popup": false,
-    "has_dialog": false,
-    "has_loading": false,
-    "is_empty": false
-  },
+  "active_window_title": "screen_analyzer.py - SAM-ScreenParser - Trae",
+  "app_type": "ide",
+  "screen_state": {"has_dialog": false, "has_loading": false, "has_popup": false, "is_empty": false},
+  "cursor": {"text": "live_screen_analysis.json", "control_type": "TreeItem", "over_element_id": 26},
+  "screen_text": "File Edit Selection View Go Run Terminal Help\nExplorer screen_analyzer.py\n(.venv) PS D:\\Projects\\SAM-ScreenParser> py screen_analyzer.py\nLive analysis complete in 5.1s",
   "elements": [
-    {
-      "id": 4, "text": "Explorer", "type": "sidebar_item", "action": "click",
-      "interactive": true, "state": "clickable", "confidence": 0.90,
-      "control_type": "Button", "class_name": "sidebar-entry-fixed-list-content",
-      "bounds": [64, 65, 135, 86], "center": [99, 75]
-    },
-    {
-      "id": 7, "text": "screen_analyzer.py", "type": "tab", "action": "click",
-      "interactive": true, "state": "clickable", "confidence": 0.70,
-      "control_type": "unknown", "class_name": "tab-label",
-      "bounds": [371, 64, 550, 87], "center": [460, 75]
-    },
-    {
-      "id": 26, "text": "live_screen_analysis.json", "type": "sidebar_item", "action": "click",
-      "interactive": true, "state": "clickable", "confidence": 0.90,
-      "control_type": "TreeItem", "class_name": "prc-TreeView-TreeViewItem-Ter5f",
-      "bounds": [85, 295, 281, 317], "center": [183, 306]
-    }
-  ],
-  "summary": {
-    "interactive_count": 3, "static_count": 0, "high_confidence_count": 3,
-    "by_type": {"sidebar_item": 2, "tab": 1}
-  }
+    {"id": 4, "text": "Explorer", "type": "sidebar_item", "confidence": 0.90},
+    {"id": 7, "text": "screen_analyzer.py", "type": "tab", "confidence": 0.70},
+    {"id": 26, "text": "live_screen_analysis.json", "type": "sidebar_item", "confidence": 0.90}
+  ]
 }
 ```
 
+There is not a single coordinate, and not a single per-element verb, in the payload the LLM sees. The model decides "act on id 26"; the executor turns 26 into a click at `[183, 306]` using the coordinate table that accompanied this exact semantic table, and derives the verb from the element's type via the legend.
+
+## The Verb Legend
+
+The mapping from element type to the verbs it supports is constant for a given type, so repeating it on every element is pure redundancy. SAM states it once, as `VERB_LEGEND`, which the controller prepends to the planning LLM's system prompt a single time per session. The semantic table therefore carries only `type`; the verb rule is read from the legend.
+
+This is a deliberate choice for small local models as much as for token count. A large model can infer "a `sidebar_item` is something I click," but a 4B model reads an explicit rule more reliably than it holds an implicit lookup table in its reasoning. The legend costs roughly 150 characters once per session; repeating `"action"` on every element would cost that information 30 times per frame on a 30-element screen. Stating the rule once strictly dominates both alternatives: it is cheaper than per-element verbs and more reliable than hoping the model remembers.
+
+The legend and the executor's `VERBS_BY_TYPE` table are the same rule in two forms — prose for the model, a set for validation — so the model's understanding and the executor's enforcement cannot drift apart.
+
+## The Plan Step (Write Schema)
+
+The LLM emits a plan step that names a target by id. The verb is **optional**: when omitted, the executor derives it from the element's type via the legend; when supplied, the executor validates it against the element's allowed verbs and rejects it on mismatch. This gives the smallest possible payload plus a second gate.
+
+```json
+{ "target_id": 4 }
+```
+
+```json
+{ "target_id": 12, "input": "python" }
+```
+
+```json
+{ "target_id": 4, "action": "click" }
+```
+
+The third form is accepted only because `click` is in the allowed set for a `sidebar_item`; had the model volunteered `"action": "type"` for that element, the executor would reject the step rather than type into a non-editable control. An unknown `target_id` — a hallucinated id, a stale id, or one that referred to a context element the filter removed — is absent from the coordinate table and is likewise refused. Both failure modes collapse to a safe no-op by construction, because the LLM never sees coordinates and the executor never trusts an unvalidated verb.
+
+## Resolving an Action at Execution Time
+
+The executor is downstream of perception and is not part of `screen_analyzer.py`; the snippet below is the required handoff so the two-table rule and the verb rule are unambiguous.
+
+```python
+def resolve_and_execute(plan, coordinate_table):
+    by_id = {e['id']: e for e in coordinate_table['elements']}
+    W, H = coordinate_table['metadata']['image_size']
+
+    el = by_id.get(plan['target_id'])
+    if el is None:
+        return 'rejected_unknown_id'           # hallucinated / filtered / stale id -> no-op
+    if el['confidence'] < 0.6:
+        return 'rejected_low_confidence'
+
+    verb = plan.get('action') or el['action']  # override if given, else derived default
+    if verb not in allowed_verbs(el['type']):
+        return 'rejected_invalid_verb'         # second gate on any volunteered verb
+    if verb in ('none', 'read'):
+        return 'no_mouse_action'
+
+    x, y = el['center']
+    x = max(0, min(W - 1, x))                  # clamp to the captured frame
+    y = max(0, min(H - 1, y))
+    if verb == 'click':          click(x, y)
+    elif verb == 'double_click': double_click(x, y)
+    elif verb == 'type':         click(x, y); type_text(plan.get('input', ''))
+    return 'executed'
+```
+
+Two safety properties fall out of this design for free. A bad id is simply absent from the coordinate table, so the lookup returns nothing and the step is refused — a wrong target becomes a refused action rather than a wrong click. And because the executor clamps to the coordinate table's `image_size`, a center can never click outside the captured frame.
+
+## Controller Memory — Cross-Frame Identity
+
+A multi-step plan often needs to refer to "the same element as a previous step" — click the Save button again, retry the row that was just selected, return to the tab opened two steps ago. That capability is real and important, but it must not live in the perception ids.
+
+Perception ids are sequential and unique **within one snapshot**, and they are intentionally re-issued on every capture. That makes the executor's id-to-element map collision-free by construction, and it makes the snapshot invariant trivial to enforce: an id names exactly one element in exactly one frame, and the coordinate it resolves to is the coordinate that was observed in that same frame.
+
+Cross-frame identity is instead held in a **controller memory** keyed on a semantic tuple — `(active_window_title, type, normalized_text)` — which is exactly the key the controller already uses to recognize a logical element. When a plan step refers to an element by description rather than by a current id, the controller first searches the **current** semantic table for a matching `(type, normalized_text)` and, if found, resolves that *current* id against the *current* coordinate table. Only if the element is absent from the current frame — momentarily undetected — does the controller fall back to the cached center from memory, and that fallback is treated as low-confidence and consumed once. Memory is therefore a fallback for missed detection, never a replacement for current detection, and a coordinate is never trusted across frames without this re-resolution.
+
+```python
+def norm(t):
+    return re.sub(r'\s+', ' ', t).strip().lower()
+
+def current_id_for(semantic_table, el_type, text):
+    nt = norm(text)
+    for e in semantic_table['elements']:
+        if e['type'] == el_type and norm(e['text']) == nt:
+            return e['id']
+    return None
+
+def plan_with_memory(plan, semantic_table, coordinate_table, memory):
+    # Normal case: the LLM named a current-frame id. Resolve directly.
+    if 'target_id' in plan:
+        return resolve_and_execute(plan, coordinate_table)
+
+    # Cross-step case: the LLM named an element by (type, text).
+    title = coordinate_table['active_window']['title']
+    key = (title, plan['by_type'], norm(plan['by_text']))
+    cid = current_id_for(semantic_table, plan['by_type'], plan['by_text'])
+
+    if cid is not None:                        # re-resolve against the CURRENT frame
+        step = {'target_id': cid}
+        if 'input' in plan:  step['input']  = plan['input']
+        if 'action' in plan: step['action'] = plan['action']
+        res = resolve_and_execute(step, coordinate_table)
+        if res == 'executed':
+            el = {e['id']: e for e in coordinate_table['elements']}[cid]
+            memory[key] = {'last_id': cid, 'last_center': el['center']}
+        return res
+
+    mem = memory.get(key)                      # not seen now -> single-use cached fallback
+    if not mem:
+        return 'rejected_not_found'
+    x, y = mem['last_center']
+    W, H = coordinate_table['metadata']['image_size']
+    x = max(0, min(W - 1, x)); y = max(0, min(H - 1, y))
+    click(x, y)
+    memory.pop(key, None)                      # consume it; never trust a stale pixel twice
+    return 'executed_low_confidence_fallback'
+```
+
+After each successful normal step the controller stores `memory[key] = {last_id, last_center}` so a later cross-step reference has something to fall back to. The fallback path clicks the cached center exactly once and then discards it; if the element is still missing on the next frame, the step is refused and the loop re-observes. This gives caching, retries, and multi-step reference without ever letting a stale coordinate win over a current detection.
+
+### Why not bake stable ids into the perception output
+
+A natural-seeming alternative is to give each element a *stable* id derived from its content — for example a hash of `(type, text, window, approximate_position)` — so the same button keeps the same id across frames and the LLM can refer to it directly. SAM deliberately does not do this, for four reasons that are properties of UI elements rather than implementation bugs:
+
+1.  **Position in the hash defeats the purpose.** The stated goal of a stable id is "the button moves and keeps its id." But if approximate position is part of the hash, a moved window changes the bucket and the id changes; to get stability the position must be dropped or coarsened, which immediately causes reason 3.
+2.  **Text churns exactly when the agent is watching.** A "Save" button becomes "Saving…", a tab gains a modified dot, a list row goes "Downloading 50%" to "Done". A content hash changes on every state transition, so the id is unstable precisely during the moments an automation agent most needs to track the element.
+3.  **Collisions collapse the executor.** Two "OK" buttons in one dialog — an extremely common layout — with coarse position quantization hash to the same id. The executor's id-to-element map then retains only one of them, last-write-wins, and "click id X" clicks an arbitrary OK button. Per-frame sequential ids are unique by construction and are immune to this; a content hash introduces the bug.
+4.  **It weakens the snapshot invariant.** The whole reason an id is bound to one snapshot is that carrying a coordinate across frames clicks a stale location. Stable ids make "reuse frame-1's coordinate in frame-3" look legitimate by design, re-opening the staleness door in exchange for the memory benefit.
+
+The capability stable ids were reaching for — cross-step reference — is delivered instead by the controller memory above, in the layer where intelligence about the world over time belongs, keyed on semantics and re-resolving the coordinate from the current frame every time. The result is the same user-facing capability (caching, retries, "click the same Save again") with none of the collision, churn, or staleness hazards.
+
 ## Controller Contract
 
-A controller that ignores these rules will damage real state. Encode them in the agent that reads the data.
+A controller that ignores these rules will damage real state. Encode them in the agent that reads the semantic table and the executor that reads the coordinate table.
 
-1.  Never act on an element with confidence below 0.6. Log it and skip it.
-2.  Never act on type code_content or text_label. They are context, not targets.
-3.  Map the action field to exactly one primitive: click is a single click at center; double_click is a double click; type is click then send keystrokes; none means do nothing.
-4.  Always click center, never a corner. Clamp center to the image bounds before clicking.
-5.  Treat cursor as a snapshot taken at capture time. If the agent moves the pointer between capture and action, the cursor object is stale; re-query or re-capture before relying on it.
-6.  Trust cursor.control_type fully for "what is under the pointer right now"; it is read from the OS, not inferred from pixels. Use it to confirm hover-triggered menus and tooltips.
-7.  If cursor.over_element_id is set, the pointer already rests on that element; for a hover-only action you may skip the move, and for a click you may click without re-locating.
-8.  Use screen_text.raw_text for semantic context (reading terminal output, finding error messages, understanding document content). Use elements array only for precise interaction coordinates.
-9.  After every action, re-capture and re-run analysis. Confirm the expected change happened (title changed, a menu appeared, text was entered) before the next action. If nothing changed, the click missed; retry at most once, then stop.
-10. If screen_state.has_dialog or has_popup is true, handle the overlay first; never click through it.
-11. If screen_state.has_loading is true, wait and re-capture; never act on a half-rendered screen.
-12. Keep a per-session memory keyed by (active_window.title, type, text). If the same logical element worked before, prefer its last known center over a fresh low-confidence detection.
+1.  Feed the planning LLM the **semantic table** only, with `VERB_LEGEND` prepended to its system prompt once per session. Keep the coordinate table for the executor, for verification, and for drawing.
+2.  The LLM may reference only ids present in the semantic table's `elements` list, or name an element by `(type, text)` for a cross-step reference. Any other id is invalid and the executor rejects it.
+3.  The executor resolves an id against the coordinate table from the **same snapshot** the LLM planned against. Never resolve a plan made on snapshot N against a coordinate table captured later; re-capture only after the action completes.
+4.  When a plan step omits the verb, the executor derives it from the element's type via the legend. When a plan step supplies a verb, the executor accepts it only if it is in the element's allowed set; otherwise it rejects the step.
+5.  Never act on an element with confidence below 0.6. Log it and skip it.
+6.  Never act on type `code_content` or `text_label` (these never appear in the filtered semantic list, but defend anyway).
+7.  Map the resolved verb to exactly one primitive: `click` = single click at the resolved `center`; `double_click` = double click; `type` = click then send the step's `input`; `none` / `read` = no mouse action.
+8.  Always click the resolved `center`, never a corner. Clamp it to the coordinate table's `image_size` before clicking.
+9.  For a cross-step reference, **first** match the target in the *current* semantic table by `(type, normalized_text)` and resolve the *current* id; **only if** the target is absent from the current frame fall back to the cached center from controller memory, treat that fallback as low-confidence, and consume it once. Memory is a fallback for missed detection, never a replacement for current detection.
+10. Treat the cursor as a snapshot taken at capture time. If the agent moves the pointer between capture and action, the cursor object is stale; re-query or re-capture before relying on it.
+11. Trust `cursor.control_type` fully for "what is under the pointer right now"; it is read from the OS, not inferred from pixels. Use it to confirm hover-triggered menus and tooltips.
+12. If `cursor.over_element_id` is set, the pointer already rests on that element; for a hover-only action skip the move, for a click click without re-locating.
+13. Use `screen_text` for semantic context (reading terminal output, finding error messages, understanding document content). Use `elements` only to choose interaction targets by id.
+14. After every action, re-capture and re-run analysis (a new snapshot with new ids). Confirm the expected change happened (title changed, a menu appeared, text was entered) before the next action. If nothing changed, the click missed; retry at most once, then stop.
+15. If `screen_state.has_dialog` or `has_popup` is true, handle the overlay first; never click through it.
+16. If `screen_state.has_loading` is true, wait and re-capture; never act on a half-rendered screen.
 
 ## Accuracy Analysis
 
--   Coordinate accuracy: pixel-perfect, within 1 to 3 pixels, resolution-independent, no calibration.
--   Element text accuracy: 95 to 99 percent after contrast normalization and regex cleaning; theme-independent.
--   Full-screen text accuracy: 90 to 95 percent via PSM 3 auto-segmentation; captures terminal logs, status bars, and dense content that region detection misses; adds <1 second processing time.
--   Classification accuracy: control-type-first classification plus reconciliation removes the editor-tab-as-input and line-number-as-input failures; the confidence field makes remaining uncertainty explicit and actionable.
+-   Coordinate accuracy: tight detector boxes, within 1–3 px on text, resolution-independent, no calibration.
+-   Text accuracy: high via PaddleOCR's recognizer; empty or garbage reads are dropped internally so they never reach the actionable list.
+-   Full-screen text accuracy: 90–95% from the same sweep; captures terminal logs, status bars, and dense content at zero extra cost.
+-   Classification accuracy: control-type-first classification plus reconciliation removes the editor-tab-as-input and line-number-as-input failures; the confidence field makes remaining uncertainty explicit and gateable.
 -   Cursor accuracy: position and the control under it are exact, read from the OS at capture instant.
--   Token efficiency: filtering removes code lines, line numbers, terminal echo, and static labels from the elements array, typically cutting it by 80 to 90 percent; screen_text is capped at 2500 characters to prevent context explosion while preserving semantic context.
+-   Token efficiency: the semantic table carries no pixel fields and no per-element verb — the verb rule is paid once via the legend — and the filter already drops code lines and static labels. On a 30-element screen the LLM payload is a small fraction of the coordinate table's size, with no loss of planning information, because the LLM never needed the pixels or the repeated verbs to choose a target.
 
-## Known Scaling Limitations
+## Known Limitations
 
--   CPU inference is 70 to 90 seconds per frame. This is a perception layer for deliberate automation, not a real-time loop.
--   Text under roughly 10 pixels, thin anti-aliased fonts, and text over busy wallpapers can still be missed even after contrast normalization.
--   Full-screen OCR (PSM 3) may merge adjacent UI panels into single lines on extremely dense layouts; the elements array remains authoritative for precise interaction.
--   Apps that draw their own UI without an accessibility tree (some games, canvas-only web apps, custom Electron builds) return an empty control type, dropping those elements to the 0.40 tier, which the contract then refuses to act on. That is correct behavior: the system declines to guess rather than click blindly.
--   The cursor object is a single-instant snapshot; between capture and action the user or another process may move the pointer, so the controller must re-query before acting on it.
--   Multi-monitor setups require ImageGrab.grab(all_screens=True) plus per-monitor DPI handling; only single-monitor is tested.
+-   RapidOCR detects only text-like regions. Pure graphics — sliders, color swatches, canvas controls, icon-only buttons with no glyph — are not detected. The executor must never invent coordinates for an unseen control, and the contract enforces that by refusing to act on any id not present in the table.
+-   Text under roughly 10 px, thin anti-aliased fonts, and text over busy or low-contrast backgrounds can still be missed.
+-   On Electron applications (Trae, VS Code, Brave) the UIA tree is sparse, so more elements fall to the 0.40 heuristic tier and the contract skips them; this is the residual weakness versus native applications, where UIA gives the 0.90 ground-truth tier.
+-   The cursor object is a single-instant snapshot; between capture and action the user or another process may move the pointer, so the executor must re-query before acting on it.
+-   An `id` is valid only within the snapshot that produced it; perception ids are intentionally not stable across frames. Cross-frame reference must go through controller memory, which re-resolves against the current frame; the memory fallback is single-use and low-confidence by design.
+-   Multi-monitor setups require `ImageGrab.grab(all_screens=True)` plus per-monitor DPI handling; only single-monitor is tested.
 -   The keyword heuristic list is English-only. Non-English UI text falls back to control type, which is why classification by control type is mandatory rather than optional.
 
 ## Citation
 
 ```bibtex
 @software{sam_screenparser_2026,
-  title = {SAM ScreenParser: Hybrid Vision Pipeline for Desktop Automation},
+  title = {SAM ScreenParser: A Two-Table OCR Pipeline for LLM Desktop Automation},
   author = {Sabir Ali Mondal},
   year = {2026},
-  note = {Florence-2 and Tesseract hybrid with UIA, cursor enrichment, and dual-layer OCR for CPU-friendly screen understanding}
+  note = {RapidOCR/PaddleOCR with UIA and cursor enrichment; exposes a coordinate-free,
+          verb-legend-driven semantic table to the planning LLM and a coordinate table to
+          the executor, with cross-frame identity held in controller memory}
 }
 ```
 
 ## License and Credits
 
--   Florence-2: Microsoft Research (Apache 2.0)
--   Tesseract OCR: Google Open Source (Apache 2.0)
+-   PaddleOCR / RapidOCR: PaddlePaddle / Breezedeus (Apache 2.0)
+-   ONNX Runtime: Microsoft (MIT)
 -   OpenCV: OpenCV Team (Apache 2.0)
--   Transformers: Hugging Face (Apache 2.0)
 -   UIAutomation: Microsoft Windows SDK
