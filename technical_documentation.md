@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-SAM ScreenParser is a local, CPU-friendly screen understanding pipeline for desktop automation. It converts live screenshots into structured JSON containing pixel-perfect coordinates, clean text, element classifications, window context, and a per-element confidence score. It operates entirely offline on standard laptops without dedicated GPU hardware, and is optimized for minimal, control-safe token consumption by downstream planning LLMs.
+SAM ScreenParser is a local, CPU-friendly pipeline that converts the live screen into structured data for desktop automation. In one pass it produces pixel-perfect coordinates, clean text, element classifications, window context, screen state, a per-element confidence score, and a cursor snapshot with the real control underneath the pointer. It operates entirely offline on standard laptops without dedicated GPU hardware and is optimized for minimal, control-safe token consumption by downstream planning LLMs.
 
 ## Architecture Philosophy
 
@@ -11,18 +11,20 @@ Large Language Models cannot generate precise pixel coordinates because their au
 - Spatial grounding: Florence-2 (vision encoder plus bounding-box regressor) outputs mathematical coordinates directly from image pixels.
 - Text extraction: Tesseract OCR with contrast normalization reads text independently of visual scene interpretation.
 - Window context: Windows UI Automation supplies active-window metadata and, at each detected coordinate, the native control type and class name.
+- Cursor context: a single UIA query at the current pointer position returns the real control under the cursor, providing a ground-truth anchor and an "already hovering element X" signal.
 - Classification: a tiered classifier reads the UIA control type first, then the class name, then text and position heuristics, assigning a confidence that reflects which tier decided.
 - Reconciliation: a cross-check downgrades obvious mislabels (a line number reported as an input, a filename tab reported as an input) before output.
 - Filtering: non-actionable code content and static labels are removed to cut token count.
-- Planning and control: a downstream agent consumes the filtered JSON and obeys an explicit contract that gates every action on confidence and verifies the result.
+- Planning and control: a downstream agent consumes the data and obeys an explicit contract that gates every action on confidence and verifies the result.
 
 ## Why This Works
 
 1. Coordinates come from regression over image features, so they are exact and resolution-independent, and they survive theme changes.
 2. Dedicated OCR with contrast normalization prevents the text pollution and icon misreads that vision-language models produce, and keeps accuracy stable across light and dark themes.
-3. DPI awareness is set at process start, so the physical pixels in the screenshot match the logical pixels the controller clicks. Without this, a scaled laptop clicks the wrong element even when the box is correct.
+3. DPI awareness is set at process start, so the physical pixels in the screenshot match the logical pixels the controller clicks and the cursor reports. Without this, a scaled laptop clicks the wrong element even when the box is correct.
 4. Classification keys on the accessibility control type, which is mandated by the OS specification and stable across every Windows app, instead of cosmetic class names that change per app and per version.
-5. Every element carries a confidence score, and the controller contract refuses to act below threshold, so the system degrades by standing still on uncertain screens instead of clicking blindly.
+5. The cursor snapshot gives the controller one point of certainty: the control type under the pointer is read directly from the OS, not inferred from pixels, so it can be trusted fully for "what is currently under the cursor".
+6. Every element carries a confidence score, and the controller contract refuses to act below threshold, so the system degrades by standing still on uncertain screens instead of clicking blindly.
 
 ## Hardware Requirements
 
@@ -44,6 +46,7 @@ Large Language Models cannot generate precise pixel coordinates because their au
 | Different fonts / ClearType | Mostly robust | Coordinates survive; very thin fonts may drop OCR |
 | Non-English UI | Partially robust | Control type is language-independent; keyword heuristics are English-only |
 | Apps with no accessibility tree | Declines gracefully | Such elements fall to low confidence and the controller skips them |
+| Cursor position | Robust | Read from OS at capture instant; a snapshot, not a live feed |
 
 ## Complete Setup Guide
 
@@ -193,6 +196,26 @@ def get_live_window_info():
         return None
 
 
+def get_cursor_info():
+    try:
+        x, y = auto.GetCursorPos()
+        c = auto.ControlFromPoint(x, y)
+        r = c.BoundingRectangle
+        return {'position': [x, y], 'text': (c.Name or '')[:80],
+                'control_type': c.ControlTypeName or 'unknown',
+                'class_name': c.ClassName or 'unknown',
+                'bounds': [r.left, r.top, r.right, r.bottom],
+                'over_element_id': None}
+    except Exception:
+        try:
+            x, y = auto.GetCursorPos()
+            pos = [x, y]
+        except Exception:
+            pos = [-1, -1]
+        return {'position': pos, 'text': '', 'control_type': 'unknown',
+                'class_name': 'unknown', 'bounds': [], 'over_element_id': None}
+
+
 def get_uia_at_point(x, y):
     try:
         c = auto.ControlFromPoint(x, y)
@@ -264,8 +287,6 @@ def classify_element(text, bounds, H, control_type, class_name):
 
 
 def reconcile(el, text):
-    # UIA point-sampling in Electron apps can return the wrong overlay control.
-    # Cross-check the OCR text against the assigned type and downgrade mismatches.
     tl = text.lower()
     if el['type'] == 'input':
         if text.strip().isdigit() or any(p in tl for p in CODE_PATTERNS):
@@ -293,7 +314,6 @@ def detect_screen_state(elements, window_info):
         state['is_empty'] = True
     if any(k in all_text for k in ['error', 'confirm', 'are you sure']):
         state['has_dialog'] = True
-    # Title-based checks first: Electron IDEs report a Chrome window class.
     if any(k in title for k in ['trae', 'visual studio code', ' - code']):
         state['active_app_type'] = 'ide'
     elif 'searchhost' in cls or 'windowsinternal' in cls:
@@ -315,12 +335,24 @@ def filter_elements_for_llm(elements):
     return out
 
 
+def cursor_over(cursor_info, elements):
+    cx, cy = cursor_info['position']
+    if cx < 0 or cy < 0:
+        return None
+    for e in elements:
+        x1, y1, x2, y2 = e['bounds']
+        if x1 <= cx <= x2 and y1 <= cy <= y2:
+            return e['id']
+    return None
+
+
 def analyze_live_screen():
     start = time.time()
     print("Capturing live screen...")
     shot = ImageGrab.grab(all_screens=False)
     W, H = shot.size
     image = shot.convert("RGB")
+    cursor_info = get_cursor_info()
 
     window_info = get_live_window_info() or {
         'title': 'Unknown', 'class': 'Unknown', 'automation_id': '',
@@ -361,6 +393,7 @@ def analyze_live_screen():
         elements.append(el)
 
     elements = filter_elements_for_llm(elements)
+    cursor_info['over_element_id'] = cursor_over(cursor_info, elements)
     screen_state = detect_screen_state(elements, window_info)
 
     by_type = {}
@@ -372,6 +405,7 @@ def analyze_live_screen():
                      'dpi_scale': round(get_dpi_scale(), 3), 'coordinate_space': 'physical_pixels',
                      'processing_time_seconds': round(time.time() - start, 2),
                      'total_elements': len(elements), 'source': 'live_screen_capture'},
+        'cursor': cursor_info,
         'active_window': window_info,
         'screen_state': screen_state,
         'elements': elements,
@@ -389,6 +423,7 @@ if __name__ == "__main__":
     print(f"Active window: {result['active_window']['title']}")
     print(f"App type: {result['screen_state']['active_app_type']}")
     print(f"DPI scale: {result['metadata']['dpi_scale']}")
+    print(f"Cursor at: {result['cursor']['position']} over element: {result['cursor']['over_element_id']}")
     print(f"Total elements: {result['metadata']['total_elements']}")
     print(f"High confidence: {result['summary']['high_confidence_count']}")
     print(f"Element types: {result['summary']['by_type']}")
@@ -430,6 +465,11 @@ for item in data['elements']:
     cv2.putText(img, label, (x1 + 2, max(sz[1], y1 - 2)),
                 cv2.FONT_HERSHEY_SIMPLEX, fs, color, th, cv2.LINE_AA)
 
+cur = data.get('cursor', {})
+pos = cur.get('position', [-1, -1])
+if pos[0] >= 0 and pos[1] >= 0:
+    cv2.drawMarker(img, tuple(pos), (0, 0, 255), cv2.MARKER_CROSS, 20, 2)
+
 os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
 cv2.imwrite(OUTPUT_PATH, img)
 cv2.imshow("Verification", img)
@@ -439,7 +479,7 @@ cv2.destroyAllWindows()
 
 ## Control-Safe Output Schema
 
-This is the structure a controller consumes. Every element carries an action verb and a confidence the controller gates on.
+This is the structure a controller consumes. Every element carries an action verb and a confidence the controller gates on, and the cursor object anchors the controller to the real control under the pointer.
 
 ```json
 {
@@ -451,6 +491,14 @@ This is the structure a controller consumes. Every element carries an action ver
     "processing_time_seconds": 88.4,
     "total_elements": 3,
     "source": "live_screen_capture"
+  },
+  "cursor": {
+    "position": [183, 306],
+    "text": "live_screen_analysis.json",
+    "control_type": "TreeItem",
+    "class_name": "prc-TreeView-TreeViewItem-Ter5f",
+    "bounds": [85, 295, 281, 317],
+    "over_element_id": 26
   },
   "active_window": {
     "title": "screen_analyzer.py - SAM-ScreenParser - Trae",
@@ -492,29 +540,34 @@ This is the structure a controller consumes. Every element carries an action ver
 
 ## Controller Contract
 
-A controller that ignores these rules will damage real state. Encode them in the agent that reads the JSON.
+A controller that ignores these rules will damage real state. Encode them in the agent that reads the data.
 
 1. Never act on an element with confidence below 0.6. Log it and skip it.
 2. Never act on type code_content or text_label. They are context, not targets.
 3. Map the action field to exactly one primitive: click is a single click at center; double_click is a double click; type is click then send keystrokes; none means do nothing.
 4. Always click center, never a corner. Clamp center to the image bounds before clicking.
-5. After every action, re-capture and re-run analysis. Confirm the expected change happened (title changed, a menu appeared, text was entered) before the next action. If nothing changed, the click missed; retry at most once, then stop.
-6. If screen_state.has_dialog or has_popup is true, handle the overlay first; never click through it.
-7. If screen_state.has_loading is true, wait and re-capture; never act on a half-rendered screen.
-8. Keep a per-session memory keyed by (active_window.title, type, text). If the same logical element worked before, prefer its last known center over a fresh low-confidence detection.
+5. Treat cursor as a snapshot taken at capture time. If the agent moves the pointer between capture and action, the cursor object is stale; re-query or re-capture before relying on it.
+6. Trust cursor.control_type fully for "what is under the pointer right now"; it is read from the OS, not inferred from pixels. Use it to confirm hover-triggered menus and tooltips.
+7. If cursor.over_element_id is set, the pointer already rests on that element; for a hover-only action you may skip the move, and for a click you may click without re-locating.
+8. After every action, re-capture and re-run analysis. Confirm the expected change happened (title changed, a menu appeared, text was entered) before the next action. If nothing changed, the click missed; retry at most once, then stop.
+9. If screen_state.has_dialog or has_popup is true, handle the overlay first; never click through it.
+10. If screen_state.has_loading is true, wait and re-capture; never act on a half-rendered screen.
+11. Keep a per-session memory keyed by (active_window.title, type, text). If the same logical element worked before, prefer its last known center over a fresh low-confidence detection.
 
 ## Accuracy Analysis
 
-- Coordinate accuracy: pixel-perfect, within 1 to 3 pixels, resolution-independent, no calibration. Unchanged and intact.
-- Text accuracy: 95 to 99 percent after contrast normalization and regex cleaning; theme-independent. Unchanged and improved on low-contrast text.
-- Classification accuracy: control-type-first classification plus reconciliation removes the editor-tab-as-input and line-number-as-input failures. The confidence field makes remaining uncertainty explicit and actionable.
-- Token efficiency: filtering removes code lines, line numbers, terminal echo, and static labels, typically cutting the element list by 80 to 90 percent.
+- Coordinate accuracy: pixel-perfect, within 1 to 3 pixels, resolution-independent, no calibration.
+- Text accuracy: 95 to 99 percent after contrast normalization and regex cleaning; theme-independent.
+- Classification accuracy: control-type-first classification plus reconciliation removes the editor-tab-as-input and line-number-as-input failures; the confidence field makes remaining uncertainty explicit and actionable.
+- Cursor accuracy: position and the control under it are exact, read from the OS at capture instant.
+- Token efficiency: filtering removes code lines, line numbers, terminal echo, and static labels, typically cutting the element list by 80 to 90 percent; the cursor adds a single small object.
 
 ## Known Scaling Limitations
 
 - CPU inference is 70 to 90 seconds per frame. This is a perception layer for deliberate automation, not a real-time loop.
 - Text under roughly 10 pixels, thin anti-aliased fonts, and text over busy wallpapers can still be missed even after contrast normalization.
 - Apps that draw their own UI without an accessibility tree (some games, canvas-only web apps, custom Electron builds) return an empty control type, dropping those elements to the 0.40 tier, which the contract then refuses to act on. That is correct behavior: the system declines to guess rather than click blindly.
+- The cursor object is a single-instant snapshot; between capture and action the user or another process may move the pointer, so the controller must re-query before acting on it.
 - Multi-monitor setups require ImageGrab.grab(all_screens=True) plus per-monitor DPI handling; only single-monitor is tested.
 - The keyword heuristic list is English-only. Non-English UI text falls back to control type, which is why classification by control type is mandatory rather than optional.
 
@@ -525,7 +578,7 @@ A controller that ignores these rules will damage real state. Encode them in the
   title = {SAM ScreenParser: Hybrid Vision Pipeline for Desktop Automation},
   author = {Sabir Ali Mondal},
   year = {2026},
-  note = {Florence-2 and Tesseract hybrid with UIA enrichment for CPU-friendly screen understanding}
+  note = {Florence-2 and Tesseract hybrid with UIA and cursor enrichment for CPU-friendly screen understanding}
 }
 ```
 
