@@ -50,7 +50,7 @@ SAM reads the screen once and writes two lists that share the same id numbers.
                    clicks it
 ```
 
-- The model's list has, for each thing on screen: an `id`, the `text`, the OS `control_type`, and a `type` only when SAM is sure. It has no pixel numbers and no confidence score.
+- The model's list has, for each thing on screen: an `id`, the `text`, the OS `control_type` (when useful), and a `type` only when SAM is sure. It has no pixel numbers and no confidence score.
 - The clicker's list has the pixel spot (`center`, `bounds`) for each `id`. The model never sees this list.
 
 Because the model never sees pixels, it cannot make up a coordinate.
@@ -60,14 +60,16 @@ That is the whole safety idea, in one line each.
 ## What the Model Sees
 
 ```json
-{ "id": 12, "text": "Explorer", "type": "sidebar_item", "control_type": "PaneControl" }
-{ "id": 18, "text": "Folder",                                "control_type": "PaneControl" }
+{ "id": 12, "text": "Explorer", "type": "sidebar_item" }
+{ "id": 18, "text": "Folder" }
 ```
 
 - When `type` is there, SAM matched it for sure, from the OS or from the UI word list. Trust it.
 - When `type` is missing, SAM is not sure. The list carries one note at the top, `_guide`, that says so: no type means the parser could not name it, and it is probably just plain text. The model may figure it out from the words around it, or it may leave it alone.
 
 The model also gets the window title, the app kind (IDE, browser, file explorer, desktop), a few yes/no flags (is a dialog open, is it loading), and which element the mouse is resting on. That is all the context it needs. There is no big block of screen text, because every word on screen is already its own line in the list. There is also no confidence number: SAM reports facts, and the model judges for itself.
+
+The `control_type` field is stripped on Electron apps (where it is always `PaneControl`) and kept only when it says something useful on native apps. The model should treat a present `control_type` as extra signal, and an absent one as normal.
 
 ## How the Model Acts
 
@@ -130,7 +132,7 @@ verified facts. You receive a semantic table. Each element has:
   id           - unique within this capture
   text         - OCR-detected text (may contain errors)
   type         - present only when deterministically identified
-  control_type - OS accessibility type (often uninformative on Electron apps)
+  control_type - OS accessibility type, present only when informative
 
 {_guide}
 
@@ -163,13 +165,13 @@ acted upon safely.
 ## Worked Examples
 
 Goal: open the Explorer panel.
-The list contains `{"id": 12, "text": "Explorer", "type": "sidebar_item", "control_type": "PaneControl"}`. The type is present and the text matches the goal, so the model emits `{"target_id": 12}`. The clicker resolves id 12 in the pixel list of this capture and clicks its centre. The agent re-captures and confirms the panel is focused.
+The list contains `{"id": 12, "text": "Explorer", "type": "sidebar_item"}`. The type is present and the text matches the goal, so the model emits `{"target_id": 12}`. The clicker resolves id 12 in the pixel list of this capture and clicks its centre. The agent re-captures and confirms the panel is focused.
 
 Goal: open the Recycle Bin on the desktop.
 The list contains `{"id": 1, "text": "Recycle Bin", "type": "sidebar_item", "control_type": "ListItemControl"}` with the app kind indicating the desktop. The disambiguation rule applies: a list item outside any application window is an icon. The model emits `{"target_id": 1, "action": "double_click"}`. The clicker double-clicks the resolved centre.
 
 Goal: act on the text `Folder` in the file tree.
-The list contains `{"id": 18, "text": "Folder", "control_type": "PaneControl"}` with no `type`. The model infers from context that this is a folder node in the explorer tree and emits `{"target_id": 18}` with the verb it chooses. If the model is not confident, it skips the element rather than guess.
+The list contains `{"id": 18, "text": "Folder"}` with no `type`. The model infers from context that this is a folder node in the explorer tree and emits `{"target_id": 18}` with the verb it chooses. If the model is not confident, it skips the element rather than guess.
 
 ## Routing Rule
 
