@@ -147,6 +147,22 @@ The model emits `{"target_id": 3}`; the executor looks up id 3 in the coordinate
 
 ---
 
+## 𝗣𝗿𝗼𝘀
+
+• Offline and CPU-friendly — No GPU or cloud API required
+• Deterministic output — Reduces hallucination during automation
+• Token efficient — Compact structured data instead of raw screen dumps
+• Safer execution — Separates reasoning from pixel-level actions
+• Honest uncertainty — Keeps unknown elements unknown instead of forcing labels
+
+## 𝗖𝗼𝗻𝘀
+• Limited icon understanding — Textless UI elements remain challenging
+• Depends on accessibility information for some applications
+• Slower than GPU-based vision systems (7-8s vs milliseconds)
+• Currently optimized mainly for English UI patterns
+
+---
+
 ## Quick Start
 
 ```powershell
