@@ -2,133 +2,110 @@
 
 ## Project Overview
 
-SAM ScreenParser is a local, CPU-friendly pipeline that converts the live screen into structured, automation-ready data for a planning LLM. In one fast pass it produces tight text-region coordinates, clean text, element classifications, window context, screen state, a per-element confidence score, a cursor snapshot of the real control under the pointer, and a full-screen visible-text summary built at no extra cost from the same OCR sweep. It runs entirely offline on standard laptops with no GPU.
+SAM ScreenParser is a local, CPU-only desktop perception engine for AI automation agents. It converts a live screen capture into two structured JSON tables that separate reasoning from execution. The parser reports only verified facts: detected text, bounding coordinates, and OS-provided accessibility metadata. It never guesses an element role, never invents a confidence score, and never fabricates a semantic label. When a deterministic match exists in the curated UI dataset, the type is assigned. When no match exists, the type is left unset and the planning model infers the role from context.
 
-The release is built around a strict separation of **reasoning** from **execution**. The pipeline emits one analysis that is projected two ways, sharing an element `id`:
-
--   A **semantic table** that the planning LLM reads. It contains ids, names, types, confidences, screen-state flags, the cursor's semantic identity, and the screen text — and **no coordinate fields at all**. The LLM reasons over names and ids and emits a plan step that names a target.
--   A **coordinate table** that the executor reads. It maps each `id` to its pixel `center` and `bounds`, plus image size and the cursor's pixel position. The executor resolves a target id to a pixel and clicks.
-
-Two further conventions keep the LLM's context minimal and the loop robust across frames. The mapping from element type to allowed verbs is stated **once**, as a legend in the system prompt, instead of being repeated on every element. And identity that must persist across frames — "the same Save button as the previous step" — lives in a **controller memory** keyed on semantics, never in the perception ids, which are unique per snapshot by construction.
+The pipeline combines RapidOCR for text detection, Windows UI Automation for accessibility facts, and RapidFuzz for dataset-driven type matching. It runs entirely offline on standard laptops with no GPU and no cloud dependency.
 
 ## Architecture Philosophy
 
-A planning LLM must not be asked to emit pixel coordinates: an autoregressive model predicts tokens, not continuous values, so coordinates produced by an LLM are guesses. SAM ScreenParser therefore obtains coordinates from a *detector* and obtains semantics from the operating system and from deterministic rules, leaving the LLM to do the one thing it is good at — choosing *which* named element to act on and *in what order*.
+A planning model must not receive guessed semantics from a perception layer. Heuristic classifiers produce false labels that the model must then unlearn: terminal output labelled as buttons, status-bar text labelled as taskbar items, code lines labelled as desktop icons. Every mislabel is a false fact.
 
-The perception engine is RapidOCR, which wraps PaddleOCR's text detector and recognizer behind ONNX Runtime. The detector is a region-proposal network that finds every text-like region in a **single parallel forward pass** and returns a tight bounding box, the text, and a read-confidence for each. Because it is a detector and not an autoregressive model, it has no token budget to overflow, so a dense screen — a slide deck, a dashboard, an IDE — yields *more* elements rather than being silently truncated.
+SAM ScreenParser therefore reports only facts:
 
-On top of the detector, three cheap sources add semantics:
+- Text detected by OCR, with its bounding box.
+- The control type reported by the operating system, when available.
+- An element type assigned only by a real OS control type or by exact or fuzzy match against the UI dataset.
+- No type at all when no deterministic method can identify the element.
 
--   **Windows UI Automation**, queried at each detected center, supplies the OS's own control type and class name — ground truth on native applications.
--   **A deterministic classifier** maps control type, then class name, then text and position heuristics to an element type and a confidence that records which tier decided. On Electron/Chromium applications where UIA returns uninformative `PaneControl`/`View`, position-based heuristics are disabled and text-content keyword matching is used instead.
--   **A cursor query** reads the real control under the pointer at capture time.
+There is no actionability filter and no confidence score. Filtering and scoring both require trusting a guessed type, which is exactly the guess the parser refuses to make. Every detected region is passed through; the model receives the full set of facts and decides, using the top-level `_guide` note, which elements are interactive and which are static text.
 
-A **reconciliation** cross-check downgrades obvious mislabels, a **filter** removes non-actionable context from the element list, and the **two-table split** strips every pixel field and every debug-only string before the data reaches the LLM. The verb rule is factored out of the per-element payload into a one-time legend, and cross-frame identity is factored out of the perception ids into controller memory. The downstream agent consumes the semantic table, plans by id, and obeys an explicit contract that gates every action on confidence, validates every volunteered verb, resolves ids against the coordinate table of the same snapshot, and verifies the result.
+The model performs the only task it is genuinely suited to: understanding what a UI element is from its text, its position relative to other elements, and the active window context. The executor receives pixel coordinates keyed by the same element id and performs the physical action. This separation means the parser cannot hallucinate a semantic label, the model cannot hallucinate a coordinate, and the executor cannot act on an unverified target.
 
-## Why This Works
+## Pipeline
 
-1.  Coordinates come from a detector's region proposals, so they are tight on text (1–3 px), resolution-independent, and survive theme changes; RapidOCR's internal preprocessing handles light and dark themes without a manual contrast step.
-2.  Detection is parallel and has no token ceiling, so dense screens are a strength, not a failure case.
-3.  The full-screen visible-text summary is a free byproduct of the same sweep (the joined texts), so the LLM gets semantic context without a second OCR pass.
-4.  The two-table interface removes all pixel fields from the LLM's view, so the model's context carries only the information it can actually use to plan; the executor owns the pixels and clicks deterministically. Because the LLM cannot see coordinates, it physically cannot hallucinate one — a wrong target becomes an unknown id that the executor refuses.
-5.  The verb legend states the type-to-verb rule a single time instead of repeating `"action"` on every element, so the per-element payload shrinks while small local models still see the rule explicitly rather than having to infer it.
-6.  Perception ids are unique within a snapshot by construction, so the executor's id-to-element map can never collide; cross-frame reference is handled by controller memory that re-resolves against the current frame, so a coordinate is never trusted across frames.
-7.  DPI awareness is set at process start, so the physical pixels in the capture match the logical pixels the executor clicks and the cursor reports; without this a scaled display clicks the wrong target even when the box is right.
-8.  Classification keys on the accessibility control type — mandated by the OS and stable across every Windows app — before falling back to cosmetic class names and then to heuristics. On Electron apps where UIA is uninformative, an Electron-aware guard disables position-based heuristics and uses text-content keyword matching instead, preventing cascading misclassification.
-9.  The cursor snapshot is one point of certainty read from the OS, not inferred from pixels, so the controller can trust "what is under the pointer right now."
-10. Every element carries a confidence score, and the contract refuses to act below threshold, on an unknown id, or on a verb the element does not support, so the system degrades by standing still on uncertain screens instead of clicking blindly.
+```text
+Desktop Screenshot (DPI-aware capture)
+        |
+        v
+RapidOCR Sweep
+  text regions with bounding boxes
+        |
+        v
+Windows UI Automation
+  control_type at each region center (fact, not guess)
+  active window title, class, bounds
+  cursor position and control under pointer
+        |
+        v
+UI Dataset Matcher (RapidFuzz)
+  exact lookup, then fuzzy match above threshold
+  no match -> type left unset
+        |
+        v
+Two-Table Output
+  Semantic Table   -> planning model (id, text, type?, control_type, _guide)
+  Coordinate Table -> executor (id, bounds, center)
+```
 
 ## Hardware Requirements
 
--   CPU: modern multi-core (AMD Ryzen 5 / Intel Core i5 or better)
--   RAM: 16 GB total system memory; peak process usage roughly 2–4 GB (no large vision model resident)
--   GPU: not required; ONNX Runtime uses the CPU by default (an NVIDIA GPU via the ONNX CUDA execution provider cuts the sweep to well under a second)
--   Storage: roughly 1 GB free for the OCR models and dependencies
--   OS: Windows 10/11
--   Tested performance: roughly 4–5 s for the OCR sweep plus 1–2 s of per-center UIA over 30–50 boxes, i.e. about **6–8 s per 1920×1080 frame** on an AMD Ryzen 7 U, CPU only
+- CPU: modern multi-core (AMD Ryzen 5 / Intel Core i5 or better)
+- RAM: 16 GB total system memory; peak usage approximately 2 to 4 GB
+- GPU: not required; ONNX Runtime uses the CPU by default
+- Storage: approximately 1 GB free for OCR models and dependencies
+- OS: Windows 10/11
+- Tested performance: 7 to 13 seconds per 1920x1080 frame on AMD Ryzen 7 U, CPU only
 
-## Scaling Behavior
-
-| Dimension | Behavior | Notes |
-| :--- | :--- | :--- |
-| Screen resolution | Robust | Detector boxes map to the true image size |
-| Dense screens | Robust | Parallel detector; no truncation under load |
-| DPI / display scaling | Robust | DPI awareness set at process start |
-| Light vs dark theme | Robust | RapidOCR's internal preprocessing handles both |
-| Different applications | Robust | Classification by control type, not class name |
-| Electron/Chromium apps | Handled via guard | Position heuristics disabled; text-keyword fallback used |
-| Different fonts / ClearType | Mostly robust | Coordinates survive; very thin fonts may drop |
-| Non-English UI | Partially robust | Control type is language-independent; keyword heuristics are English-only |
-| Apps with no accessibility tree | Declines gracefully | Such elements fall to the low-confidence tier and the contract skips them |
-| Cursor position | Robust | Read from the OS at capture instant; a snapshot, not a live feed |
-| Full-screen text coverage | Robust | The sweep itself is the summary; about 95–98% of visible text |
-| Cross-frame identity | Robust | Handled by controller memory that re-resolves against the current frame |
-
-## Complete Setup Guide
+## Setup Guide
 
 ### Prerequisites
 
--   Python 3.12.10 installed with Add to PATH enabled
--   An IDE such as VS Code or Trae (optional)
--   No Tesseract install required; no PyTorch required
+- Python 3.12.x installed with Add to PATH enabled
+- No Tesseract required
+- No PyTorch required
+- No GPU required
 
-### Installation Steps
-
-1.  Open the IDE at `D:\Projects\SAM-ScreenParser`.
-2.  Set the interpreter before creating the virtual environment: Ctrl+Shift+P → Python: Select Interpreter → Enter interpreter path → paste `D:\Projects\SAM-ScreenParser\.venv\Scripts\python.exe`.
-3.  Open a new terminal and run:
+### Installation
 
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python --version
-pip install rapidocr_onnxruntime opencv-python pillow numpy uiautomation
+pip install rapidocr_onnxruntime opencv-python pillow numpy uiautomation rapidfuzz
 ```
 
-4.  Verify:
+OpenCV is installed only to draw the verification image. It is not used for detection.
+
+### Verification
 
 ```powershell
-py -c "from rapidocr_onnxruntime import RapidOCR; import cv2, numpy, uiautomation; print('Dependencies OK')"
+py -c "from rapidocr_onnxruntime import RapidOCR; import cv2, numpy, uiautomation; from rapidfuzz import fuzz; print('OK')"
 ```
 
-The version check must print Python 3.12.x. If it prints 3.14, the activation failed; do not install packages until it shows 3.12. RapidOCR downloads its ONNX models automatically on first use.
+RapidOCR downloads its ONNX models automatically on first use.
 
-## Version Maintenance Guide
+## Version Maintenance
 
 ### Tested Versions
 
-The OCR stack is far less version-sensitive than a PyTorch vision stack. These are tested-good versions, not brittle pins:
-
-| Package | Tested | Reason |
+| Package | Tested | Purpose |
 | :--- | :--- | :--- |
-| Python | 3.12.x | 3.14 lacks Rust binding support in some dependencies |
-| rapidocr_onnxruntime | 1.3.x | PaddleOCR models on ONNX Runtime; CPU-friendly |
-| opencv-python | 4.10.x | Drawing and color conversion |
+| Python | 3.12.x | Runtime |
+| rapidocr_onnxruntime | 1.3.x | PaddleOCR via ONNX Runtime |
+| opencv-python | 4.10.x | Verification drawing only |
 | numpy | 1.26.x / 2.x | Array handling |
 | uiautomation | 2.0.x | Windows accessibility queries |
+| rapidfuzz | 3.x | Fuzzy string matching for dataset lookup |
 
-### Updating Dependencies
-
-Test in a throwaway environment first:
-
-```powershell
-py -3.12 -m venv .venv-test
-.\.venv-test\Scripts\Activate.ps1
-pip install rapidocr_onnxruntime opencv-python pillow numpy uiautomation
-py test_screen.py
-```
-
-### Recovering a Broken Environment
-
-If pip fails or activation breaks, close every IDE window on the project, then:
+### Environment Recovery
 
 ```powershell
 taskkill /F /IM python.exe 2>$null
 cmd /c "rmdir /s /q D:\Projects\SAM-ScreenParser\.venv"
 py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install rapidocr_onnxruntime opencv-python pillow numpy uiautomation rapidfuzz
 ```
-
-The rmdir step fails with access denied when an IDE holds `python.exe` open. Closing the IDE first is mandatory; restarting the machine is the fallback if the lock persists.
 
 ## Codebase
 
@@ -139,17 +116,52 @@ SAM-ScreenParser/
 ├── .venv/
 ├── images/
 ├── output/
-├── test_screen.py              # Unified test: capture + classify + draw + write JSON
-├── screen_analyzer.py          # Production analyzer (same logic, no drawing)
-├── test_screen_drawn.png       # All raw detections drawn (visual verification)
-├── test_screen_data.json       # Coordinate table (executor + humans + tooling)
-├── test_screen_compact.json    # Semantic table (the LLM input)
+├── element_dataset.json
+├── test_screen.py
+├── test_screen_drawn.png
+├── test_screen_data.json
+├── test_screen_compact.json
+├── automation_suggestion.md
 └── technical_documentation.md
 ```
 
-### test_screen.py
+### element_dataset.json
 
-This is the single unified test script. It captures the live screen, runs the full perception pipeline, draws **all** raw detections (including filtered-out context) onto the screenshot for visual verification, and writes both JSON tables. Comments before each function explain its role so users can understand the pipeline without reading separate documentation.
+A curated mapping of known UI element text to element types, loaded once at startup. The parser performs an exact lookup first, then a fuzzy match for OCR errors. Names are stored lowercase. The dataset covers IDE controls, browser UI, file explorer, Office applications, Windows settings, dialog buttons, status messages, and toolbar items.
+
+```json
+[
+  {"name": "file", "type": "menu"},
+  {"name": "edit", "type": "menu"},
+  {"name": "view", "type": "menu"},
+  {"name": "selection", "type": "menu"},
+  {"name": "go", "type": "menu"},
+  {"name": "run", "type": "menu"},
+  {"name": "help", "type": "menu"},
+  {"name": "account", "type": "menu"},
+  {"name": "general", "type": "menu"},
+  {"name": "settings", "type": "menu"},
+  {"name": "explorer", "type": "sidebar_item"},
+  {"name": "search", "type": "sidebar_item"},
+  {"name": "problems", "type": "sidebar_item"},
+  {"name": "output", "type": "sidebar_item"},
+  {"name": "terminal", "type": "sidebar_item"},
+  {"name": "outline", "type": "sidebar_item"},
+  {"name": "timeline", "type": "sidebar_item"},
+  {"name": "save", "type": "button"},
+  {"name": "open", "type": "button"},
+  {"name": "download", "type": "button"},
+  {"name": "cancel", "type": "dialog_button"},
+  {"name": "ok", "type": "dialog_button"},
+  {"name": "username", "type": "input"},
+  {"name": "password", "type": "input"},
+  {"name": "no suggestions available", "type": "label"},
+  {"name": "loading", "type": "status"},
+  {"name": "no results found", "type": "label"}
+]
+```
+
+### test_screen.py
 
 ```python
 import os
@@ -160,77 +172,66 @@ import ctypes
 import numpy as np
 import cv2
 from datetime import datetime
+from pathlib import Path
 from PIL import ImageGrab
 import uiautomation as auto
 from rapidocr_onnxruntime import RapidOCR
+from rapidfuzz import fuzz
 
-# DPI awareness MUST be set before any screen capture or UIA query.
-# Without this, physical pixels in the screenshot won't match logical
-# pixels the executor clicks, causing mis-clicks on scaled displays.
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
 except Exception:
     ctypes.windll.user32.SetProcessDPIAware()
 
-# Single global OCR instance. RapidOCR loads PaddleOCR's detector + recognizer
-# models via ONNX Runtime on first use and caches them. Creating it once avoids
-# reloading ~80MB of models on every call.
 OCR = RapidOCR()
+DATASET_PATH = Path(__file__).parent / "element_dataset.json"
+FUZZY_THRESHOLD = 85
 
-# Queries the OS for the current display DPI scale factor.
-# Returns 1.0 as fallback if the query fails.
-# Used in metadata so the executor knows whether coordinates are scaled.
+# Guide note embedded in the semantic table. Explains the type-omission convention.
+GUIDE = ("If an element has no 'type' field, the parser could not deterministically "
+         "identify its role. It is most likely normal static text. Infer the role from "
+         "surrounding elements and window context if interaction is required.")
+
+
 def get_dpi_scale():
     try:
         return ctypes.windll.user32.GetDpiForSystem() / 96.0
     except Exception:
         return 1.0
 
-# Text patterns that identify code content (non-actionable).
-# Used by the classifier to filter out editor lines from the actionable list.
-CODE_PATTERNS = ['def ', 'class ', 'import ', 'from ', 'return ', 'with ',
-                 'print(', 'json.', 'result[', '.get(', '.append(', 'self.']
 
-# Words that identify buttons when UIA provides no useful control type.
-# This is the text-content fallback for Electron/Chromium apps.
-BUTTON_WORDS = ['new', 'save', 'delete', 'submit', 'cancel', 'ok', 'yes', 'no',
-                'upload', 'download', 'send', 'search', 'open', 'close', 'back',
-                'next', 'previous', 'refresh', 'sort', 'view', 'details', 'share']
-
-# Verb legend: stated ONCE in the LLM system prompt, not per element.
-# This saves ~450 chars/frame on a 30-element screen vs repeating "action".
-VERB_LEGEND = (
-    "VERB RULES by element.type: "
-    "button|tab|sidebar_item|window_control|taskbar_item|column_header|path_bar -> click; "
-    "input -> click or type; desktop_icon -> double_click; terminal -> click or read; "
-    "any -> none (no-op). To act, emit {\"target_id\": <id>} and optionally \"input\" for text "
-    "or \"action\" to override; an override is accepted only if allowed for that type.")
-
-# Maps element types to their allowed verbs. The executor validates any
-# volunteered verb against this set. This is the enforcement side of VERB_LEGEND.
-VERBS_BY_TYPE = {
-    'button': {'click'}, 'tab': {'click'}, 'sidebar_item': {'click'},
-    'window_control': {'click'}, 'taskbar_item': {'click'},
-    'column_header': {'click'}, 'path_bar': {'click'},
-    'input': {'click', 'type'}, 'desktop_icon': {'double_click'},
-    'terminal': {'click', 'read'}}
+def load_dataset():
+    if not DATASET_PATH.exists():
+        return {}, []
+    with open(DATASET_PATH, "r", encoding="utf-8") as f:
+        entries = json.load(f)
+    exact = {e["name"].lower().strip(): e["type"] for e in entries}
+    fuzzy_list = [(e["name"].lower().strip(), e["type"]) for e in entries]
+    return exact, fuzzy_list
 
 
-# Returns the set of verbs allowed for a given element type.
-# Includes 'none' and 'read' as universal safe verbs.
-def allowed_verbs(el_type):
-    return VERBS_BY_TYPE.get(el_type, set()) | {'none', 'read'}
+EXACT_MAP, FUZZY_LIST = load_dataset()
 
 
-# Removes non-printable characters and collapses whitespace.
-# Applied to every OCR result before classification.
+def match_dataset(text):
+    tl = text.lower().strip()
+    if tl in EXACT_MAP:
+        return EXACT_MAP[tl], "dataset_exact"
+    best_score, best_type = 0, None
+    for name, sig_type in FUZZY_LIST:
+        score = fuzz.ratio(tl, name)
+        if score > best_score:
+            best_score, best_type = score, sig_type
+    if best_score >= FUZZY_THRESHOLD and best_type:
+        return best_type, "dataset_fuzzy"
+    return "unknown", "none"
+
+
 def clean_text(raw):
     c = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', ' ', raw.strip())
     return re.sub(r'\s+', ' ', c).strip()
 
 
-# Queries the OS for the active window's title, class, and bounds.
-# Returns safe defaults if the query fails (e.g., during screen transitions).
 def get_live_window_info():
     try:
         fg = auto.GetForegroundControl()
@@ -241,9 +242,6 @@ def get_live_window_info():
         return {'title': 'Unknown', 'class': 'Unknown', 'bounds': [0, 0, 0, 0]}
 
 
-# Reads the cursor position and the UIA control underneath it.
-# Returns semantic identity (text, control_type) plus pixel position.
-# The pixel position goes ONLY in the coordinate table, never the semantic table.
 def get_cursor_info():
     try:
         x, y = auto.GetCursorPos()
@@ -259,10 +257,6 @@ def get_cursor_info():
         return {'position': pos, 'text': '', 'control_type': 'unknown', 'over_element_id': None}
 
 
-# Queries UIA at a specific pixel coordinate for control type and class name.
-# On native apps this returns ground-truth semantics (Button, Edit, TreeItem).
-# On Electron apps this typically returns ("PaneControl", "View") — useless.
-# The classifier detects this and switches to text-content heuristics.
 def get_uia_at_point(x, y):
     try:
         c = auto.ControlFromPoint(x, y)
@@ -271,158 +265,31 @@ def get_uia_at_point(x, y):
         return ('', '')
 
 
-# Tier 1 classifier: maps UIA control type to element type.
-# Returns None if the control type is unrecognized, signaling fallback to tier 2.
-# Confidence 0.90 because this is OS ground truth.
-def classify_by_control_type(ct):
-    t = (ct or '').lower()
+def uia_to_type(control_type):
+    t = (control_type or '').lower()
     if t in ('button', 'menuitem', 'menu', 'splitbutton'):
-        return {'type': 'button', 'interactive': True, 'state': 'clickable'}
+        return 'button'
     if t == 'edit':
-        return {'type': 'input', 'interactive': True, 'state': 'editable'}
+        return 'input'
     if t in ('listitem', 'treeitem'):
-        return {'type': 'sidebar_item', 'interactive': True, 'state': 'clickable'}
+        return 'sidebar_item'
     if t in ('tabitem', 'tab'):
-        return {'type': 'tab', 'interactive': True, 'state': 'clickable'}
+        return 'tab'
+    if t in ('checkbox',):
+        return 'checkbox'
+    if t in ('radiobutton',):
+        return 'radio'
+    if t in ('combobox',):
+        return 'dropdown'
+    if t in ('slider',):
+        return 'slider'
+    if t in ('hyperlink',):
+        return 'link'
     return None
 
 
-# Tier 2 classifier: maps UIA class name to element type.
-# Catches cases where control type is generic but class name is specific.
-# Returns None if unrecognized, signaling fallback to tier 3 (heuristics).
-# Confidence 0.75 because class names are cosmetic and app-specific.
-def classify_by_class_name(cn):
-    c = (cn or '').lower()
-    if any(k in c for k in ['sidebar', 'treeview', 'listview', 'entry']):
-        return {'type': 'sidebar_item', 'interactive': True, 'state': 'clickable'}
-    if any(k in c for k in ['tab', 'pivot', 'titlebar']):
-        return {'type': 'tab', 'interactive': True, 'state': 'clickable'}
-    if 'button' in c and 'search' not in c:
-        return {'type': 'button', 'interactive': True, 'state': 'clickable'}
-    if any(k in c for k in ['edit', 'textbox', 'omnibox']):
-        return {'type': 'input', 'interactive': True, 'state': 'editable'}
-    if any(k in c for k in ['terminal', 'console']):
-        return {'type': 'terminal', 'interactive': True, 'state': 'readonly'}
-    return None
-
-
-# Tier 3 classifier: text-content and position heuristics.
-# THIS IS WHERE THE ELECTRON FIX LIVES.
-# When UIA returns PaneControl+View (Electron), position-based heuristics
-# (desktop_icon, taskbar_item) are DISABLED because they misfire on Electron layouts.
-# Instead, text-content keyword matching identifies sidebar items, tabs,
-# terminal output, and status bar text correctly regardless of UIA quality.
-def classify_element(text, bounds, H, control_type, class_name):
-    x1, y1, x2, y2 = bounds
-    w, h = x2 - x1, y2 - y1
-    tl = text.lower()
-
-    # Tier 1: UIA control type (ground truth on native apps)
-    r = classify_by_control_type(control_type)
-    if r:
-        return {**r, 'confidence': 0.90}
-
-    # Tier 2: UIA class name (app-specific but often useful)
-    r = classify_by_class_name(class_name)
-    if r:
-        return {**r, 'confidence': 0.75}
-
-    # === ELECTRON GUARD ===
-    # PaneControl + View means UIA is useless (Electron/Chromium).
-    # Disable position heuristics that would misclassify everything.
-    is_electron = (control_type == 'PaneControl' and class_name == 'View')
-
-    # --- Text-content heuristics (work regardless of UIA quality) ---
-
-    # Code content: function defs, imports, method calls
-    if text.strip().isdigit() and len(text.strip()) <= 4 and w < 50:
-        return {'type': 'code_content', 'interactive': False, 'state': 'static', 'confidence': 0.60}
-    if any(p in tl for p in CODE_PATTERNS):
-        return {'type': 'code_content', 'interactive': False, 'state': 'static', 'confidence': 0.60}
-
-    # Button keywords (text-content fallback when UIA fails)
-    if any(x == tl or tl.startswith(x + ' ') for x in BUTTON_WORDS):
-        return {'type': 'button', 'interactive': True, 'state': 'clickable', 'confidence': 0.60}
-
-    # Input fields: wide boxes with search/enter/type/filter text
-    if w > h * 4 and any(k in tl for k in ['search', 'enter', 'type', 'filter']):
-        return {'type': 'input', 'interactive': True, 'state': 'editable', 'confidence': 0.60}
-
-    # Path bars: contain > and drive letters or URLs
-    if '>' in text and any(k in tl for k in ['this pc', 'c:', 'd:', 'http', 'www']):
-        return {'type': 'path_bar', 'interactive': True, 'state': 'readonly', 'confidence': 0.60}
-
-    # Column headers in file explorers
-    if tl in ['name', 'date modified', 'type', 'size', 'status']:
-        return {'type': 'column_header', 'interactive': True, 'state': 'sortable', 'confidence': 0.60}
-
-    # Terminal output patterns (prevents terminal logs from becoming actionable)
-    terminal_patterns = ['capturing', 'running', 'detected', 'complete in',
-                         'dependencies ok', 'saved ', 'elements:', 'screen text:',
-                         'cursor over', 'json size', 'llm payload', 'processed 0/0',
-                         'no suggestions', 'waiting for', 'high confidence',
-                         'live analysis', 'enriching with', 'drew ']
-    if any(p in tl for p in terminal_patterns):
-        return {'type': 'text_label', 'interactive': False, 'state': 'static', 'confidence': 0.60}
-
-    # Status bar patterns (prevents editor status from becoming actionable)
-    status_patterns = ['ln ', 'col ', 'spaces:', 'utf-8', 'crlf', 'python 3.',
-                       'select python interpreter', 'go live', 'cue-pro',
-                       'side ai chat', 'inline ai chat']
-    if any(p in tl for p in status_patterns):
-        return {'type': 'text_label', 'interactive': False, 'state': 'static', 'confidence': 0.60}
-
-    # IDE sidebar keywords (when UIA fails on Electron)
-    sidebar_keywords = ['explorer', 'outline', 'timeline', 'folder', 'weights', 'images']
-    if tl.strip() in sidebar_keywords or any(tl.strip().startswith(k) for k in sidebar_keywords):
-        return {'type': 'sidebar_item', 'interactive': True, 'state': 'clickable', 'confidence': 0.60}
-
-    # Tab keywords in lower panel area (when UIA fails on Electron)
-    tab_keywords = ['problems', 'output', 'terminal']
-    if tl.strip().lower() in tab_keywords and y1 > H * 0.4:
-        return {'type': 'tab', 'interactive': True, 'state': 'clickable', 'confidence': 0.60}
-
-    # === POSITION HEURISTICS (disabled on Electron) ===
-    if not is_electron:
-        if text in ['x', 'X', '—', '□'] and y1 < 50:
-            return {'type': 'window_control', 'interactive': True, 'state': 'clickable', 'confidence': 0.60}
-        if y1 > H - 60:
-            return {'type': 'taskbar_item', 'interactive': True, 'state': 'clickable', 'confidence': 0.60}
-        if h < 25 and y1 > 50:
-            return {'type': 'desktop_icon', 'interactive': True, 'state': 'double_click_required', 'confidence': 0.40}
-
-    # Final fallback: static text label (filtered out, not actionable)
-    return {'type': 'text_label', 'interactive': False, 'state': 'static', 'confidence': 0.40}
-
-
-# Post-classification cross-check. Downgrades obvious mislabels:
-# - An "input" that contains only digits or code patterns → code_content
-# - An "input" that looks like a filename tab → tab
-# This prevents the most common false positives from reaching the LLM.
-def reconcile(el, text):
-    tl = text.lower()
-    if el['type'] == 'input':
-        if text.strip().isdigit() or any(p in tl for p in CODE_PATTERNS):
-            el.update(type='code_content', interactive=False, state='static', confidence=0.70)
-        elif re.search(r'\.\w{2,4}(\s|$)', text) and '://' not in text and not tl.startswith('search'):
-            el.update(type='tab', interactive=True, state='clickable', confidence=0.70)
-    return el
-
-
-# Derives the default action verb from element state.
-# The LLM doesn't need this per-element (see VERB_LEGEND), but the executor
-# uses it as the default when the LLM omits the verb in its plan step.
-def action_for(state, interactive):
-    if not interactive:
-        return 'none'
-    return {'editable': 'type', 'double_click_required': 'double_click'}.get(state, 'click')
-
-
-# Detects high-level screen state from element text and window metadata.
-# Flags dialogs, loading states, empty screens, and app type.
-# The LLM uses these flags to decide whether to act, wait, or handle overlays.
 def detect_screen_state(elements, window_info):
-    all_text = ' '.join(e['text'].lower() for e in elements)
+    all_text = ' '.join(e.get('text', '').lower() for e in elements)
     cls = window_info.get('class', '').lower()
     title = window_info.get('title', '').lower()
     state = {'has_popup': False, 'has_loading': False, 'has_dialog': False,
@@ -436,7 +303,8 @@ def detect_screen_state(elements, window_info):
     if any(k in title for k in ['trae', 'visual studio code', ' - code']):
         state['active_app_type'] = 'ide'
     elif 'searchhost' in cls or 'windowsinternal' in cls:
-        state['active_app_type'] = 'windows_search'; state['has_popup'] = True
+        state['active_app_type'] = 'windows_search'
+        state['has_popup'] = True
     elif any(k in cls for k in ['chrome', 'brave', 'edge', 'msedge']):
         state['active_app_type'] = 'browser'
     elif any(k in cls for k in ['explorer', 'cabinet']):
@@ -446,15 +314,6 @@ def detect_screen_state(elements, window_info):
     return state
 
 
-# Removes non-actionable elements (code_content, text_label) from the list.
-# Only interactive elements survive to reach the LLM's semantic table.
-# The drawn image shows ALL elements (before filtering) for visual verification.
-def filter_elements(elements):
-    return [e for e in elements if e['interactive'] and e['type'] not in ('code_content', 'text_label')]
-
-
-# Finds which element (if any) the cursor is currently hovering over.
-# Sets over_element_id on the cursor object so the LLM knows what's under the pointer.
 def cursor_over(cursor_info, elements):
     cx, cy = cursor_info['position']
     if cx < 0 or cy < 0:
@@ -466,11 +325,16 @@ def cursor_over(cursor_info, elements):
     return None
 
 
-# Builds the semantic table (compact projection for the LLM).
-# Strips ALL coordinate fields, ALL UIA strings, and per-element verbs.
-# The LLM receives only: id, text, type, confidence, screen_text, cursor identity.
 def compact_for_llm(r):
+    elements = []
+    for e in r['elements']:
+        el = {'id': e['id'], 'text': e['text']}
+        if e['type'] != 'unknown':
+            el['type'] = e['type']
+        el['control_type'] = e['control_type']
+        elements.append(el)
     return {
+        '_guide': GUIDE,
         'active_window_title': r['active_window']['title'],
         'app_type': r['screen_state']['active_app_type'],
         'screen_state': {k: r['screen_state'][k] for k in
@@ -478,45 +342,34 @@ def compact_for_llm(r):
         'cursor': {'text': r['cursor'].get('text', ''),
                    'control_type': r['cursor']['control_type'],
                    'over_element_id': r['cursor']['over_element_id']},
-        'screen_text': r['screen_text']['raw_text'],
-        'elements': [{'id': e['id'], 'text': e['text'], 'type': e['type'],
-                      'confidence': e['confidence']} for e in r['elements']]}
+        'elements': elements}
 
 
-# Draws ALL raw detections onto the screenshot for visual verification.
-# Thick border = actionable (passed filter). Thin border = filtered-out context.
-# This runs BEFORE filtering so you see everything the detector found.
-# Matches the behavior of the standalone rapidocr_result.png test.
 def draw_all_detections(image_bgr, all_elements, output_path):
     img = image_bgr.copy()
     color_map = {
-        'button': (0, 255, 0), 'input': (255, 165, 0), 'path_bar': (255, 255, 0),
-        'column_header': (255, 0, 255), 'window_control': (0, 0, 255),
-        'sidebar_item': (0, 255, 255), 'tab': (0, 200, 200), 'terminal': (150, 150, 0),
-        'desktop_icon': (100, 100, 255), 'taskbar_item': (255, 100, 100),
-        'text_label': (200, 200, 200), 'code_content': (50, 50, 50)}
-
+        'button': (0, 255, 0), 'input': (255, 165, 0), 'sidebar_item': (0, 255, 255),
+        'tab': (0, 200, 200), 'menu': (255, 0, 255), 'dialog_button': (0, 200, 0),
+        'checkbox': (200, 200, 0), 'radio': (200, 150, 0), 'dropdown': (150, 100, 255),
+        'link': (255, 100, 100), 'search': (100, 255, 200), 'toolbar_button': (0, 180, 0),
+        'status': (128, 128, 128), 'label': (180, 180, 180), 'unknown': (100, 100, 100)}
     for item in all_elements:
         x1, y1, x2, y2 = item["bounds"]
-        color = color_map.get(item["type"], (128, 128, 128))
-        conf = item.get("confidence", 0)
-        thick = 2 if item.get("interactive", False) else 1
+        color = color_map.get(item["type"], (100, 100, 100))
+        thick = 2 if item.get("match_source") in ("uia", "dataset_exact") else 1
         cv2.rectangle(img, (x1, y1), (x2, y2), color, thick)
         cv2.circle(img, tuple(item["center"]), 3, (0, 0, 255), -1)
-        label = f"{item['type']} {conf:.2f} {item['text'][:14]}"
+        label = f"{item['type']} | {item['text'][:16]}"
         fs, th = 0.35, 1
         sz, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, fs, th)
         cv2.rectangle(img, (x1, max(0, y1 - sz[1] - 4)),
                       (x1 + sz[0] + 4, max(0, y1)), (0, 0, 0), -1)
         cv2.putText(img, label, (x1 + 2, max(sz[1], y1 - 2)),
                     cv2.FONT_HERSHEY_SIMPLEX, fs, color, th, cv2.LINE_AA)
-
     os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
     cv2.imwrite(output_path, img)
 
 
-# Main entry point. Captures screen, runs full pipeline, draws all detections,
-# writes both JSON tables. This is the unified test — no separate draw script needed.
 def main():
     start = time.time()
     print("Capturing live screen...")
@@ -530,37 +383,36 @@ def main():
     print("Running RapidOCR sweep...")
     results, _ = OCR(bgr)
     results = results or []
-    print(f"Detected {len(results)} raw text regions.")
+    print(f"Detected {len(results)} text regions.")
 
-    print("Enriching with UIA and classifying...")
-    all_elements, texts = [], []
-    for i, item in enumerate(results):
+    all_elements, texts, eid = [], [], 0
+    for item in results:
         box = np.array(item[0], dtype=np.int32)
         text = clean_text(item[1])
         if not text or len(text) <= 1:
             continue
         x1, y1 = int(box[:, 0].min()), int(box[:, 1].min())
         x2, y2 = int(box[:, 0].max()), int(box[:, 1].max())
-        texts.append(text)
         cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+        texts.append(text)
+        eid += 1
         control_type, class_name = get_uia_at_point(cx, cy)
-        c = classify_element(text, [x1, y1, x2, y2], H, control_type, class_name)
-        el = {'id': i + 1, 'text': text, 'type': c['type'], 'interactive': c['interactive'],
-              'state': c['state'], 'confidence': c['confidence'],
-              'control_type': control_type or 'unknown', 'class_name': class_name or 'unknown',
-              'bounds': [x1, y1, x2, y2], 'center': [cx, cy]}
-        el = reconcile(el, text)
-        el['action'] = action_for(el['state'], el['interactive'])
-        all_elements.append(el)
+        uia_type = uia_to_type(control_type)
+        if uia_type:
+            el_type, match_source = uia_type, "uia"
+        else:
+            el_type, match_source = match_dataset(text)
+        all_elements.append({
+            'id': eid, 'text': text, 'type': el_type,
+            'control_type': control_type or 'unknown', 'class_name': class_name or 'unknown',
+            'match_source': match_source, 'bounds': [x1, y1, x2, y2], 'center': [cx, cy]})
 
-    # Draw ALL raw detections BEFORE filtering (visual verification)
+    print(f"Total regions: {len(all_elements)}")
     draw_all_detections(bgr, all_elements, "test_screen_drawn.png")
-    print(f"Drew {len(all_elements)} raw detections → test_screen_drawn.png")
+    print(f"Drew {len(all_elements)} detections -> test_screen_drawn.png")
 
-    # Filter for LLM-facing tables
-    filtered = filter_elements(all_elements)
-    cursor_info['over_element_id'] = cursor_over(cursor_info, filtered)
-    screen_state = detect_screen_state(filtered, window_info)
+    cursor_info['over_element_id'] = cursor_over(cursor_info, all_elements)
+    screen_state = detect_screen_state(all_elements, window_info)
 
     joined = "\n".join(texts)
     trunc = len(joined) > 2500
@@ -569,136 +421,156 @@ def main():
                    'is_truncated': trunc, 'source': 'rapidocr_sweep'}
 
     by_type = {}
-    for e in filtered:
+    for e in all_elements:
         by_type[e['type']] = by_type.get(e['type'], 0) + 1
+    matched = sum(1 for e in all_elements if e['match_source'] != 'none')
+    unknown = sum(1 for e in all_elements if e['type'] == 'unknown')
 
     result = {
         'metadata': {'timestamp': datetime.now().isoformat(), 'image_size': [W, H],
                      'dpi_scale': round(get_dpi_scale(), 3),
                      'coordinate_space': 'physical_pixels', 'detector': 'RapidOCR',
                      'processing_time_seconds': round(time.time() - start, 2),
-                     'total_raw_detections': len(all_elements),
-                     'total_actionable_elements': len(filtered),
-                     'source': 'live_screen_capture'},
-        'active_window': window_info,
-        'screen_state': screen_state,
-        'screen_text': screen_text,
-        'cursor': cursor_info,
-        'elements': filtered,
-        'summary': {'interactive_count': sum(1 for e in filtered if e['interactive']),
-                    'high_confidence_count': sum(1 for e in filtered if e['confidence'] >= 0.6),
-                    'by_type': by_type}}
+                     'total_regions': len(all_elements), 'matched_count': matched,
+                     'unknown_count': unknown, 'source': 'live_screen_capture'},
+        'active_window': window_info, 'screen_state': screen_state,
+        'screen_text': screen_text, 'cursor': cursor_info, 'elements': all_elements,
+        'summary': {'by_type': by_type, 'matched': matched, 'unknown': unknown}}
 
-    # Write coordinate table (full artifact for executor + debugging)
     with open("test_screen_data.json", "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
-
-    # Write semantic table (compact projection for LLM)
-    compact = compact_for_llm(result)
     with open("test_screen_compact.json", "w", encoding="utf-8") as f:
-        json.dump(compact, f, indent=2)
+        json.dump(compact_for_llm(result), f, indent=2)
 
     elapsed = round(time.time() - start, 2)
-    print(f"\n✅ Complete in {elapsed}s")
-    print(f"   Raw detections:   {len(all_elements)}")
-    print(f"   Actionable:       {len(filtered)}")
-    print(f"   Screen text:      {screen_text['char_count']} chars")
-    print(f"   Cursor over:      element {cursor_info['over_element_id']}")
-    print(f"\n📁 Outputs:")
-    print(f"   test_screen_drawn.png    ← ALL raw detections (visual verification)")
-    print(f"   test_screen_data.json    ← Coordinate table (executor)")
-    print(f"   test_screen_compact.json ← Semantic table (LLM)")
+    print(f"\nComplete in {elapsed}s")
+    print(f"  Total regions:  {len(all_elements)}")
+    print(f"  Matched:        {matched}")
+    print(f"  Unknown:        {unknown}")
+    print(f"\nOutputs:")
+    print(f"  test_screen_drawn.png    <- all detections drawn")
+    print(f"  test_screen_data.json    <- coordinate table (executor)")
+    print(f"  test_screen_compact.json <- semantic table (model)")
 
 
 if __name__ == "__main__":
     main()
 ```
 
-## Control-Safe Output Schema
+## Output Schema
+
+### Semantic Table (Model Input)
+
+Contains no coordinates, no confidence, and no full-screen text dump. Every visible text region is already an element, so a separate text block would be redundant. The `type` field is present only when the parser deterministically identified the element; otherwise it is omitted, and the top-level `_guide` field explains the convention. There is no actionability filter: every detected region is included, and the model decides what is interactive.
+
+```json
+{
+  "_guide": "If an element has no 'type' field, the parser could not deterministically identify its role. It is most likely normal static text. Infer the role from surrounding elements and window context if interaction is required.",
+  "active_window_title": "Settings - SAM-ScreenParser - Trae",
+  "app_type": "ide",
+  "screen_state": {"has_dialog": false, "has_loading": false, "has_popup": false, "is_empty": false},
+  "cursor": {"text": "", "control_type": "PaneControl", "over_element_id": 56},
+  "elements": [
+    {"id": 3, "text": "File", "type": "menu", "control_type": "PaneControl"},
+    {"id": 6, "text": "View", "type": "menu", "control_type": "PaneControl"},
+    {"id": 12, "text": "Explorer", "type": "sidebar_item", "control_type": "PaneControl"},
+    {"id": 13, "text": "technical_documentation.md (Preview)", "control_type": "PaneControl"},
+    {"id": 16, "text": "Settings \u00d7", "type": "menu", "control_type": "PaneControl"},
+    {"id": 18, "text": "Folder", "control_type": "PaneControl"}
+  ]
+}
+```
+
+### Coordinate Table (Executor)
+
+Holds pixel coordinates keyed by the same element id, plus the debug fields (class name, match source, and a human-readable copy of the screen text). It is never sent to the model. Unlike the semantic table, it always records the `type` field, writing `"unknown"` when the parser could not identify the element.
+
+```json
+{
+  "metadata": {"image_size": [1920, 1080], "dpi_scale": 1.25, "total_regions": 67,
+               "matched_count": 15, "unknown_count": 52},
+  "cursor": {"position": [775, 1005]},
+  "elements": [
+    {"id": 3, "text": "File", "type": "menu", "control_type": "PaneControl",
+     "class_name": "View", "match_source": "dataset_exact",
+     "bounds": [118, 12, 142, 31], "center": [130, 21]},
+    {"id": 13, "text": "technical_documentation.md (Preview)", "type": "unknown",
+     "control_type": "PaneControl", "class_name": "View", "match_source": "none",
+     "bounds": [402, 84, 705, 107], "center": [553, 95]}
+  ]
+}
+```
+
+### Type Assignment Rules
+
+| Source | Condition | Result | Provenance |
+| :--- | :--- | :--- | :--- |
+| UIA | Real control type (Button, Edit, Tab, ListItem) | Mapped type | `uia` |
+| Dataset exact | Text matches a dataset entry exactly | Dataset type | `dataset_exact` |
+| Dataset fuzzy | Fuzzy score at or above threshold | Dataset type | `dataset_fuzzy` |
+| None | No UIA type and no dataset match | Type unset in semantic table; `"unknown"` in coordinate table | `none` |
 
 ### Field Retention
 
-| Field | Coordinate Table | Semantic Table (LLM) | Reason |
+| Field | Coordinate Table | Semantic Table | Reason |
 | :--- | :--- | :--- | :--- |
-| id | yes | yes | Handle the LLM plans with and executor resolves |
-| text | yes | yes | LLM matches targets by name |
-| type | yes | yes | Contract gates on it; legend keys on it |
-| confidence | yes | yes | Gate threshold |
-| action (default verb) | yes | **no** | Derived per element; rule is the one-time legend |
-| center | yes | **no** | Execution-only pixel; resolved by id at click time |
-| bounds | yes | no | Needed for drawing and region logic, not clicking |
-| image_size | yes (metadata) | no | Executor clamps; LLM never needs it |
-| element control_type | yes | no | Classifier input/debug; result lives in `type` |
-| element class_name | yes | no | Long noisy string; pure token cost for LLM |
-| cursor.position | yes | **no** | Pixel; LLM needs cursor identity, not coordinate |
-| cursor.text / control_type | yes | yes | Semantic identity of what is under the pointer |
-| cursor.over_element_id | yes | yes | Id, not pixel; tells LLM what pointer rests on |
-| interactive / state | yes | no | Constant after filtering / encoded by verb |
-| verb rule (legend) | n/a | **once, in system prompt** | Stated single time instead of per element |
+| id | yes | yes | Handle the model plans with and the executor resolves |
+| text | yes | yes | The model matches targets by name |
+| type | yes (known or `"unknown"`) | only when known | Omitted when unknown per `_guide` |
+| control_type | yes | yes | OS accessibility fact |
+| class_name | yes | no | Debug only |
+| match_source | yes | no | Debug only |
+| bounds | yes | no | Executor-only pixel data |
+| center | yes | no | Executor-only pixel data |
+| screen_text | yes (human copy) | no | Redundant; every line is already an element |
+| confidence | no | no | Not produced; the parser reports facts only |
 
-### Semantic Element (LLM Input)
+## Parser Guarantees
 
-```json
-{ "id": 4, "text": "Explorer", "type": "sidebar_item", "confidence": 0.90 }
-```
-
-### Coordinate Element (Executor)
-
-```json
-{ "id": 4, "text": "Explorer", "type": "sidebar_item", "action": "click",
-  "confidence": 0.90, "control_type": "Button",
-  "class_name": "sidebar-entry-fixed-list-content",
-  "bounds": [64, 65, 135, 86], "center": [99, 75] }
-```
-
-## Controller Contract
-
-1.  Feed the planning LLM the **semantic table** only, with `VERB_LEGEND` prepended to its system prompt once per session.
-2.  The LLM may reference only ids present in the semantic table's `elements` list, or name an element by `(type, text)` for cross-step reference.
-3.  The executor resolves an id against the coordinate table from the **same snapshot**. Never resolve across snapshots.
-4.  When a plan step omits the verb, derive it from type via the legend. When supplied, validate against `allowed_verbs()`; reject on mismatch.
-5.  Never act on confidence below 0.6. Never act on `code_content` or `text_label`.
-6.  Always click the resolved `center`, clamped to `image_size`.
-7.  For cross-step reference, **first** match in the current semantic table; **only if** absent, fall back to cached center from controller memory (single-use, low-confidence).
-8.  Treat cursor as a snapshot. Re-query if pointer moved between capture and action.
-9.  Trust `cursor.control_type` fully for hover confirmation.
-10. After every action, re-capture. Confirm expected change before next action. Retry missed clicks at most once.
-11. Handle dialogs/popups first. Wait if `has_loading`. Never click through overlays.
+- Coordinates come from the detector's region proposals and are tight on text, resolution-independent, and survive theme changes.
+- The two tables are generated from one capture, so their ids align exactly. An id names one element in one snapshot.
+- The semantic table contains no pixel field, so the model physically cannot emit a coordinate.
+- A type is assigned only by a real OS control type or a dataset match. The parser never invents a type from position or keyword heuristics.
+- Elements the parser cannot identify carry no type in the semantic table. This is reported honestly rather than guessed.
+- No element is silently dropped. The model receives the complete set of detected regions and applies its own judgment, guided by `_guide`.
+- The cursor position and the control under it are read from the OS at capture time, not inferred from pixels.
 
 ## Accuracy Analysis
 
--   Coordinate accuracy: tight detector boxes, within 1–3 px on text, resolution-independent.
--   Text accuracy: high via PaddleOCR's recognizer; garbage reads dropped internally.
--   Full-screen text accuracy: 90–95% from same sweep; captures terminal logs and dense content at zero extra cost.
--   Classification accuracy: control-type-first on native apps; Electron guard + text-keyword fallback prevents cascading misclassification on Chromium apps.
--   Token efficiency: semantic table carries no pixels, no per-element verb, no UIA strings. Legend paid once. Filter drops code and labels.
+- Coordinate accuracy: within 1 to 3 px on text, resolution-independent.
+- Text accuracy: high via the PaddleOCR recognizer; garbage reads are dropped before they reach the output.
+- Type accuracy on native applications: high when UIA provides a real control type.
+- Type accuracy on Electron applications: determined by dataset coverage. Exact matches are reliable; fuzzy matches absorb OCR errors; unmatched text is left without a type.
+- Token efficiency: the semantic table carries no coordinates, no full-screen text, no confidence, and no type string for unknown elements.
 
 ## Known Limitations
 
--   RapidOCR detects only text-like regions. Pure graphics, sliders, canvas controls, and icon-only buttons without glyphs are not detected. The contract refuses to act on unseen controls.
--   Text under ~10 px, thin anti-aliased fonts, and text over busy backgrounds can be missed.
--   **Electron/Chromium UIA collapse.** Apps built on Electron (Trae, VS Code, Brave, Discord) expose minimal UIA information. Most elements return `PaneControl`/`View`. The classifier disables position-based heuristics when Electron is detected and uses text-content keyword matching instead. This is less reliable than native UIA but prevents the cascade of mislabels that would otherwise occur. Sidebar items, tabs, terminal output, and status bar text are recognized via keyword patterns.
--   Cursor is a single-instant snapshot; re-query before acting if pointer may have moved.
--   Perception ids are snapshot-bound. Cross-frame reference must go through controller memory.
--   Multi-monitor requires `ImageGrab.grab(all_screens=True)` plus per-monitor DPI; only single-monitor tested.
--   Keyword heuristics are English-only. Non-English falls back to control type.
+- RapidOCR detects only text-like regions. The parser reads OS accessibility names but does not perform contour-based shape detection, so a control that has neither text nor an accessibility name is invisible to it.
+- Electron and Chromium applications (Trae, VS Code, Brave, Discord) return `PaneControl` or `View` for nearly all UIA queries. Type assignment on these apps depends on dataset matching.
+- The `ListItemControl` accessibility type is reported both for sidebar or list entries and for desktop icons. The parser maps it to `sidebar_item`, which implies a single click, but a desktop icon requires a double click. The semantic role of a `ListItemControl` therefore depends on window context, which the parser does not resolve. Consumers should disambiguate using `app_type` and element position; see `automation_suggestion.md`.
+- The UI dataset is English-only and not exhaustive. Uncommon or custom UI text is left without a type.
+- Text under approximately 10 px, thin anti-aliased fonts, and text over busy backgrounds can be missed by OCR.
+- The cursor is a single-instant snapshot. Re-query before acting if the pointer may have moved.
+- Perception ids are snapshot-bound. Cross-frame reference must go through controller memory.
+- Multi-monitor requires `ImageGrab.grab(all_screens=True)` plus per-monitor DPI handling. Only single-monitor is tested.
 
 ## Citation
 
 ```bibtex
 @software{sam_screenparser_2026,
-  title = {SAM ScreenParser: A Two-Table OCR Pipeline for LLM Desktop Automation},
+  title = {SAM ScreenParser: A Fact-Only Perception Engine for LLM Desktop Automation},
   author = {Sabir Ali Mondal},
   year = {2026},
-  note = {RapidOCR/PaddleOCR with UIA and cursor enrichment; exposes a coordinate-free,
-          verb-legend-driven semantic table to the planning LLM and a coordinate table to
-          the executor, with Electron-aware classification and controller memory}
+  note = {RapidOCR and Windows UIA with dataset-driven type matching. Exposes a
+          coordinate-free semantic table to the planning model and a coordinate table to
+          the executor. Unidentified elements are reported without a type.}
 }
 ```
 
 ## License and Credits
 
--   PaddleOCR / RapidOCR: PaddlePaddle / Breezedeus (Apache 2.0)
--   ONNX Runtime: Microsoft (MIT)
--   OpenCV: OpenCV Team (Apache 2.0)
--   UIAutomation: Microsoft Windows SDK
+- PaddleOCR / RapidOCR: PaddlePaddle / Breezedeus (Apache 2.0)
+- ONNX Runtime: Microsoft (MIT)
+- OpenCV: OpenCV Team (Apache 2.0)
+- RapidFuzz: maxbachmann (MIT)
+- UIAutomation: Microsoft Windows SDK
