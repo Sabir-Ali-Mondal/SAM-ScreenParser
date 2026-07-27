@@ -1,4 +1,4 @@
-# SAM ScreenParser — Technical Documentation
+# SAM ScreenParser -- Technical Documentation
 
 ## Project Overview
 
@@ -113,16 +113,17 @@ pip install rapidocr_onnxruntime opencv-python pillow numpy uiautomation rapidfu
 
 ```text
 SAM-ScreenParser/
-├── .venv/
-├── images/
-├── output/
-├── element_dataset.json
-├── test_screen.py
-├── test_screen_drawn.png
-├── test_screen_data.json
-├── test_screen_compact.json
-├── automation_suggestion.md
-└── technical_documentation.md
++-- .venv/
++-- images/
++-- output/
++-- element_dataset.json
++-- test_screen.py
++-- test_screen_drawn.png
++-- test_screen_data.json
++-- test_screen_compact.json
++-- automation_suggestion.md
++-- technical_documentation.md
++-- README.md
 ```
 
 ### element_dataset.json
@@ -326,12 +327,19 @@ def cursor_over(cursor_info, elements):
 
 
 def compact_for_llm(r):
+    """Build semantic table for the planning model.
+    - No coordinates, no confidence, no screen_text dump.
+    - type is OMITTED when the parser could not identify the element.
+    - control_type is OMITTED when it is 'PaneControl' (Electron noise).
+    """
     elements = []
     for e in r['elements']:
         el = {'id': e['id'], 'text': e['text']}
         if e['type'] != 'unknown':
             el['type'] = e['type']
-        el['control_type'] = e['control_type']
+        ct = e.get('control_type', '')
+        if ct and ct != 'PaneControl' and ct != 'unknown':
+            el['control_type'] = ct
         elements.append(el)
     return {
         '_guide': GUIDE,
@@ -461,7 +469,7 @@ if __name__ == "__main__":
 
 ### Semantic Table (Model Input)
 
-Contains no coordinates, no confidence, and no full-screen text dump. Every visible text region is already an element, so a separate text block would be redundant. The `type` field is present only when the parser deterministically identified the element; otherwise it is omitted, and the top-level `_guide` field explains the convention. There is no actionability filter: every detected region is included, and the model decides what is interactive.
+Contains no coordinates, no confidence, and no full-screen text dump. Every visible text region is already an element, so a separate text block would be redundant. The `type` field is present only when the parser deterministically identified the element; otherwise it is omitted, and the top-level `_guide` field explains the convention. The `control_type` field is omitted when it is `PaneControl` (the Electron noise value), so the model's context stays clean. There is no actionability filter: every detected region is included, and the model decides what is interactive.
 
 ```json
 {
@@ -471,12 +479,11 @@ Contains no coordinates, no confidence, and no full-screen text dump. Every visi
   "screen_state": {"has_dialog": false, "has_loading": false, "has_popup": false, "is_empty": false},
   "cursor": {"text": "", "control_type": "PaneControl", "over_element_id": 56},
   "elements": [
-    {"id": 3, "text": "File", "type": "menu", "control_type": "PaneControl"},
-    {"id": 6, "text": "View", "type": "menu", "control_type": "PaneControl"},
-    {"id": 12, "text": "Explorer", "type": "sidebar_item", "control_type": "PaneControl"},
-    {"id": 13, "text": "technical_documentation.md (Preview)", "control_type": "PaneControl"},
-    {"id": 16, "text": "Settings \u00d7", "type": "menu", "control_type": "PaneControl"},
-    {"id": 18, "text": "Folder", "control_type": "PaneControl"}
+    {"id": 3, "text": "File", "type": "menu"},
+    {"id": 6, "text": "View", "type": "menu"},
+    {"id": 12, "text": "Explorer", "type": "sidebar_item"},
+    {"id": 13, "text": "technical_documentation.md (Preview)"},
+    {"id": 18, "text": "Folder"}
   ]
 }
 ```
@@ -517,7 +524,7 @@ Holds pixel coordinates keyed by the same element id, plus the debug fields (cla
 | id | yes | yes | Handle the model plans with and the executor resolves |
 | text | yes | yes | The model matches targets by name |
 | type | yes (known or `"unknown"`) | only when known | Omitted when unknown per `_guide` |
-| control_type | yes | yes | OS accessibility fact |
+| control_type | yes | only when NOT `PaneControl`/`unknown` | Electron noise stripped |
 | class_name | yes | no | Debug only |
 | match_source | yes | no | Debug only |
 | bounds | yes | no | Executor-only pixel data |
@@ -532,6 +539,7 @@ Holds pixel coordinates keyed by the same element id, plus the debug fields (cla
 - The semantic table contains no pixel field, so the model physically cannot emit a coordinate.
 - A type is assigned only by a real OS control type or a dataset match. The parser never invents a type from position or keyword heuristics.
 - Elements the parser cannot identify carry no type in the semantic table. This is reported honestly rather than guessed.
+- `PaneControl` and `unknown` control types are stripped from the semantic table to keep the model's context clean on Electron apps.
 - No element is silently dropped. The model receives the complete set of detected regions and applies its own judgment, guided by `_guide`.
 - The cursor position and the control under it are read from the OS at capture time, not inferred from pixels.
 
@@ -541,7 +549,7 @@ Holds pixel coordinates keyed by the same element id, plus the debug fields (cla
 - Text accuracy: high via the PaddleOCR recognizer; garbage reads are dropped before they reach the output.
 - Type accuracy on native applications: high when UIA provides a real control type.
 - Type accuracy on Electron applications: determined by dataset coverage. Exact matches are reliable; fuzzy matches absorb OCR errors; unmatched text is left without a type.
-- Token efficiency: the semantic table carries no coordinates, no full-screen text, no confidence, and no type string for unknown elements.
+- Token efficiency: the semantic table carries no coordinates, no full-screen text, no confidence, no `PaneControl` noise, and no type string for unknown elements.
 
 ## Known Limitations
 
