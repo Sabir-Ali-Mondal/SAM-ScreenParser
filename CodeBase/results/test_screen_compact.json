@@ -1,0 +1,289 @@
+{
+  "_guide": "If an element has no 'type' field, the parser could not deterministically identify its role. It is most likely normal static text. Infer the role from surrounding elements and window context if interaction is required.",
+  "active_window_title": "automation_suggestion.md (Preview) - SAM-ScreenParser - Trae",
+  "app_type": "ide",
+  "screen_state": {
+    "has_dialog": true,
+    "has_loading": false,
+    "has_popup": false,
+    "is_empty": false
+  },
+  "cursor": {
+    "text": "",
+    "control_type": "PaneControl",
+    "over_element_id": null
+  },
+  "elements": [
+    {
+      "id": 1,
+      "text": "IDE",
+      "type": "list_item"
+    },
+    {
+      "id": 2,
+      "text": "File",
+      "type": "menu"
+    },
+    {
+      "id": 3,
+      "text": "Edit Selection"
+    },
+    {
+      "id": 4,
+      "text": "View",
+      "type": "menu"
+    },
+    {
+      "id": 5,
+      "text": "Go",
+      "type": "menu"
+    },
+    {
+      "id": 6,
+      "text": "Run",
+      "type": "button"
+    },
+    {
+      "id": 7,
+      "text": "Terminal",
+      "type": "sidebar_item"
+    },
+    {
+      "id": 8,
+      "text": "Help",
+      "type": "menu"
+    },
+    {
+      "id": 9,
+      "text": "SAM-ScreenParser"
+    },
+    {
+      "id": 10,
+      "text": "Q Search",
+      "type": "sidebar_item"
+    },
+    {
+      "id": 11,
+      "text": "++"
+    },
+    {
+      "id": 12,
+      "text": "Log in \u2192]"
+    },
+    {
+      "id": 13,
+      "text": "Explorer",
+      "type": "sidebar_item"
+    },
+    {
+      "id": 14,
+      "text": "2 test_screen.py"
+    },
+    {
+      "id": 15,
+      "text": "automation_suggestion.md (Preview)\u00d7"
+    },
+    {
+      "id": 16,
+      "text": "TRAE",
+      "type": "button"
+    },
+    {
+      "id": 17,
+      "text": "\u4e09Q"
+    },
+    {
+      "id": 18,
+      "text": "Folder",
+      "type": "button"
+    },
+    {
+      "id": 19,
+      "text": "automation_suggestion.md"
+    },
+    {
+      "id": 20,
+      "text": ".P3"
+    },
+    {
+      "id": 21,
+      "text": "Preview",
+      "type": "button"
+    },
+    {
+      "id": 22,
+      "text": "Markdown"
+    },
+    {
+      "id": 23,
+      "text": ">.venv"
+    },
+    {
+      "id": 24,
+      "text": ">results"
+    },
+    {
+      "id": 25,
+      "text": "automation_suggestion.md"
+    },
+    {
+      "id": 26,
+      "text": "Automation Suggestion"
+    },
+    {
+      "id": 27,
+      "text": "2 dedup.py"
+    },
+    {
+      "id": 28,
+      "text": "[1 element_dataset.json"
+    },
+    {
+      "id": 29,
+      "text": "technical_documentation.md"
+    },
+    {
+      "id": 30,
+      "text": "what it sees. It does not decide what to click. The model decides. The clicker clicks. Keeping these three jobs separate is"
+    },
+    {
+      "id": 31,
+      "text": "2 test_screen.py"
+    },
+    {
+      "id": 32,
+      "text": "what makes the whole thing safe."
+    },
+    {
+      "id": 33,
+      "text": "Parser First"
+    },
+    {
+      "id": 34,
+      "text": "For a desktop agent, SAM should be the eyes by default. Bring in a vision model only for things that are not made of"
+    },
+    {
+      "id": 35,
+      "text": "text and buttons."
+    },
+    {
+      "id": 36,
+      "text": "Get started with TRAE",
+      "type": "label"
+    },
+    {
+      "id": 37,
+      "text": "text V"
+    },
+    {
+      "id": 38,
+      "text": "User request"
+    },
+    {
+      "id": 39,
+      "text": "Enhanced with rich contextformore accurate an.."
+    },
+    {
+      "id": 40,
+      "text": "Openagent ecosystem tailored for all devneeds"
+    },
+    {
+      "id": 41,
+      "text": "Run SAM ScreenParser"
+    },
+    {
+      "id": 42,
+      "text": "Understands,acts,and deliversreal software"
+    },
+    {
+      "id": 43,
+      "text": "Problems",
+      "type": "sidebar_item"
+    },
+    {
+      "id": 44,
+      "text": "Output",
+      "type": "sidebar_item"
+    },
+    {
+      "id": 45,
+      "text": "Terminal",
+      "type": "sidebar_item"
+    },
+    {
+      "id": 46,
+      "text": "powershell\u5341",
+      "type": "list_item"
+    },
+    {
+      "id": 47,
+      "text": "@ PS D:\\Projects\\SAM-ScreenParser> py test_screen.py"
+    },
+    {
+      "id": 48,
+      "text": "Log in to start \u2192]"
+    },
+    {
+      "id": 49,
+      "text": "Traceback (most recent call last):"
+    },
+    {
+      "id": 50,
+      "text": "File \"D:\\Projects\\SAM-ScreenParser\\test_screen.py\", line 12, in <module>"
+    },
+    {
+      "id": 51,
+      "text": "from rapidocr_onnxruntime import RapidocR"
+    },
+    {
+      "id": 52,
+      "text": "ModuLeNotFoundError: No moduLe named 'rapidocr_onnxruntime"
+    },
+    {
+      "id": 53,
+      "text": "\u25cf PS D:\\Projects\\SAM-ScreenParser> .\\.venv\\Scripts\\Activate.ps1"
+    },
+    {
+      "id": 54,
+      "text": "o (.venv) PS D:\\Projects\\SAM-ScreenParser> py test_screen.py"
+    },
+    {
+      "id": 55,
+      "text": ">Outline",
+      "type": "sidebar_item"
+    },
+    {
+      "id": 56,
+      "text": "> Timeline",
+      "type": "sidebar_item"
+    },
+    {
+      "id": 57,
+      "text": "Cue-Pro"
+    },
+    {
+      "id": 58,
+      "text": "No suggestions available, waiting for your"
+    },
+    {
+      "id": 59,
+      "text": "coding..."
+    },
+    {
+      "id": 60,
+      "text": "@Processed 0/0 changed point(s)"
+    },
+    {
+      "id": 61,
+      "text": "X0AOm"
+    },
+    {
+      "id": 62,
+      "text": "(-) Go Live"
+    },
+    {
+      "id": 63,
+      "text": "*CUE"
+    }
+  ]
+}

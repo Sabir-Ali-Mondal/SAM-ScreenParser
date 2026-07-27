@@ -1,0 +1,1198 @@
+{
+  "metadata": {
+    "timestamp": "2026-07-27T13:19:03.950465",
+    "image_size": [
+      1920,
+      1080
+    ],
+    "dpi_scale": 1.25,
+    "coordinate_space": "physical_pixels",
+    "detector": "RapidOCR",
+    "processing_time_seconds": 9.41,
+    "total_regions": 63,
+    "matched_count": 19,
+    "unknown_count": 44,
+    "source": "live_screen_capture"
+  },
+  "active_window": {
+    "title": "automation_suggestion.md (Preview) - SAM-ScreenParser - Trae",
+    "class": "Chrome_WidgetWin_1",
+    "bounds": [
+      -9,
+      -9,
+      1929,
+      1089
+    ]
+  },
+  "screen_state": {
+    "has_popup": false,
+    "has_loading": false,
+    "has_dialog": true,
+    "is_empty": false,
+    "active_app_type": "ide"
+  },
+  "screen_text": {
+    "raw_text": "IDE\nFile\nEdit Selection\nView\nGo\nRun\nTerminal\nHelp\nSAM-ScreenParser\nQ Search\n++\nLog in \u2192]\nExplorer\n2 test_screen.py\nautomation_suggestion.md (Preview)\u00d7\nTRAE\n\u4e09Q\nFolder\nautomation_suggestion.md\n.P3\nPreview\nMarkdown\n>.venv\n>results\nautomation_suggestion.md\nAutomation Suggestion\n2 dedup.py\n[1 element_dataset.json\ntechnical_documentation.md\nwhat it sees. It does not decide what to click. The model decides. The clicker clicks. Keeping these three jobs separate is\n2 test_screen.py\nwhat makes the whole thing safe.\nParser First\nFor a desktop agent, SAM should be the eyes by default. Bring in a vision model only for things that are not made of\ntext and buttons.\nGet started with TRAE\ntext V\nUser request\nEnhanced with rich contextformore accurate an..\nOpenagent ecosystem tailored for all devneeds\nRun SAM ScreenParser\nUnderstands,acts,and deliversreal software\nProblems\nOutput\nTerminal\npowershell\u5341\n@ PS D:\\Projects\\SAM-ScreenParser> py test_screen.py\nLog in to start \u2192]\nTraceback (most recent call last):\nFile \"D:\\Projects\\SAM-ScreenParser\\test_screen.py\", line 12, in <module>\nfrom rapidocr_onnxruntime import RapidocR\nModuLeNotFoundError: No moduLe named 'rapidocr_onnxruntime\n\u25cf PS D:\\Projects\\SAM-ScreenParser> .\\.venv\\Scripts\\Activate.ps1\no (.venv) PS D:\\Projects\\SAM-ScreenParser> py test_screen.py\n>Outline\n> Timeline\nCue-Pro\nNo suggestions available, waiting for your\ncoding...\n@Processed 0/0 changed point(s)\nX0AOm\n(-) Go Live\n*CUE",
+    "char_count": 1437,
+    "line_count": 63,
+    "is_truncated": false,
+    "source": "rapidocr_sweep"
+  },
+  "cursor": {
+    "position": [
+      966,
+      876
+    ],
+    "text": "",
+    "control_type": "PaneControl",
+    "over_element_id": null
+  },
+  "elements": [
+    {
+      "id": 1,
+      "text": "IDE",
+      "type": "list_item",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_fuzzy",
+      "bounds": [
+        54,
+        16,
+        84,
+        35
+      ],
+      "center": [
+        69,
+        25
+      ]
+    },
+    {
+      "id": 2,
+      "text": "File",
+      "type": "menu",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_exact",
+      "bounds": [
+        108,
+        17,
+        142,
+        36
+      ],
+      "center": [
+        125,
+        26
+      ]
+    },
+    {
+      "id": 3,
+      "text": "Edit Selection",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        151,
+        17,
+        287,
+        37
+      ],
+      "center": [
+        219,
+        27
+      ]
+    },
+    {
+      "id": 4,
+      "text": "View",
+      "type": "menu",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_exact",
+      "bounds": [
+        292,
+        19,
+        343,
+        36
+      ],
+      "center": [
+        317,
+        27
+      ]
+    },
+    {
+      "id": 5,
+      "text": "Go",
+      "type": "menu",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_exact",
+      "bounds": [
+        349,
+        20,
+        380,
+        35
+      ],
+      "center": [
+        364,
+        27
+      ]
+    },
+    {
+      "id": 6,
+      "text": "Run",
+      "type": "button",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_exact",
+      "bounds": [
+        392,
+        19,
+        445,
+        37
+      ],
+      "center": [
+        418,
+        28
+      ]
+    },
+    {
+      "id": 7,
+      "text": "Terminal",
+      "type": "sidebar_item",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_exact",
+      "bounds": [
+        439,
+        16,
+        516,
+        39
+      ],
+      "center": [
+        477,
+        27
+      ]
+    },
+    {
+      "id": 8,
+      "text": "Help",
+      "type": "menu",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_exact",
+      "bounds": [
+        524,
+        17,
+        570,
+        39
+      ],
+      "center": [
+        547,
+        28
+      ]
+    },
+    {
+      "id": 9,
+      "text": "SAM-ScreenParser",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        603,
+        18,
+        741,
+        35
+      ],
+      "center": [
+        672,
+        26
+      ]
+    },
+    {
+      "id": 10,
+      "text": "Q Search",
+      "type": "sidebar_item",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_fuzzy",
+      "bounds": [
+        783,
+        14,
+        863,
+        40
+      ],
+      "center": [
+        823,
+        27
+      ]
+    },
+    {
+      "id": 11,
+      "text": "++",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        22,
+        24,
+        34,
+        32
+      ],
+      "center": [
+        28,
+        28
+      ]
+    },
+    {
+      "id": 12,
+      "text": "Log in \u2192]",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        1659,
+        15,
+        1724,
+        35
+      ],
+      "center": [
+        1691,
+        25
+      ]
+    },
+    {
+      "id": 13,
+      "text": "Explorer",
+      "type": "sidebar_item",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_exact",
+      "bounds": [
+        68,
+        66,
+        135,
+        86
+      ],
+      "center": [
+        101,
+        76
+      ]
+    },
+    {
+      "id": 14,
+      "text": "2 test_screen.py",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        390,
+        64,
+        516,
+        90
+      ],
+      "center": [
+        453,
+        77
+      ]
+    },
+    {
+      "id": 15,
+      "text": "automation_suggestion.md (Preview)\u00d7",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        561,
+        64,
+        875,
+        88
+      ],
+      "center": [
+        718,
+        76
+      ]
+    },
+    {
+      "id": 16,
+      "text": "TRAE",
+      "type": "button",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_fuzzy",
+      "bounds": [
+        1437,
+        69,
+        1484,
+        90
+      ],
+      "center": [
+        1460,
+        79
+      ]
+    },
+    {
+      "id": 17,
+      "text": "\u4e09Q",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        12,
+        110,
+        42,
+        134
+      ],
+      "center": [
+        27,
+        122
+      ]
+    },
+    {
+      "id": 18,
+      "text": "Folder",
+      "type": "button",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_fuzzy",
+      "bounds": [
+        63,
+        103,
+        130,
+        123
+      ],
+      "center": [
+        96,
+        113
+      ]
+    },
+    {
+      "id": 19,
+      "text": "automation_suggestion.md",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        389,
+        106,
+        609,
+        126
+      ],
+      "center": [
+        499,
+        116
+      ]
+    },
+    {
+      "id": 20,
+      "text": ".P3",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        1195,
+        106,
+        1226,
+        125
+      ],
+      "center": [
+        1210,
+        115
+      ]
+    },
+    {
+      "id": 21,
+      "text": "Preview",
+      "type": "button",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_exact",
+      "bounds": [
+        1250,
+        105,
+        1305,
+        126
+      ],
+      "center": [
+        1277,
+        115
+      ]
+    },
+    {
+      "id": 22,
+      "text": "Markdown",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        1325,
+        106,
+        1398,
+        126
+      ],
+      "center": [
+        1361,
+        116
+      ]
+    },
+    {
+      "id": 23,
+      "text": ">.venv",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        66,
+        127,
+        146,
+        152
+      ],
+      "center": [
+        106,
+        139
+      ]
+    },
+    {
+      "id": 24,
+      "text": ">results",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        66,
+        155,
+        157,
+        180
+      ],
+      "center": [
+        111,
+        167
+      ]
+    },
+    {
+      "id": 25,
+      "text": "automation_suggestion.md",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        82,
+        185,
+        304,
+        207
+      ],
+      "center": [
+        193,
+        196
+      ]
+    },
+    {
+      "id": 26,
+      "text": "Automation Suggestion",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        465,
+        186,
+        795,
+        217
+      ],
+      "center": [
+        630,
+        201
+      ]
+    },
+    {
+      "id": 27,
+      "text": "2 dedup.py",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        81,
+        209,
+        176,
+        238
+      ],
+      "center": [
+        128,
+        223
+      ]
+    },
+    {
+      "id": 28,
+      "text": "[1 element_dataset.json",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        81,
+        239,
+        260,
+        262
+      ],
+      "center": [
+        170,
+        250
+      ]
+    },
+    {
+      "id": 29,
+      "text": "technical_documentation.md",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        81,
+        266,
+        316,
+        290
+      ],
+      "center": [
+        198,
+        278
+      ]
+    },
+    {
+      "id": 30,
+      "text": "what it sees. It does not decide what to click. The model decides. The clicker clicks. Keeping these three jobs separate is",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        465,
+        268,
+        1321,
+        288
+      ],
+      "center": [
+        893,
+        278
+      ]
+    },
+    {
+      "id": 31,
+      "text": "2 test_screen.py",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        81,
+        292,
+        209,
+        320
+      ],
+      "center": [
+        145,
+        306
+      ]
+    },
+    {
+      "id": 32,
+      "text": "what makes the whole thing safe.",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        464,
+        293,
+        706,
+        313
+      ],
+      "center": [
+        585,
+        303
+      ]
+    },
+    {
+      "id": 33,
+      "text": "Parser First",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        466,
+        358,
+        598,
+        385
+      ],
+      "center": [
+        532,
+        371
+      ]
+    },
+    {
+      "id": 34,
+      "text": "For a desktop agent, SAM should be the eyes by default. Bring in a vision model only for things that are not made of",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        464,
+        411,
+        1304,
+        434
+      ],
+      "center": [
+        884,
+        422
+      ]
+    },
+    {
+      "id": 35,
+      "text": "text and buttons.",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        463,
+        435,
+        591,
+        460
+      ],
+      "center": [
+        527,
+        447
+      ]
+    },
+    {
+      "id": 36,
+      "text": "Get started with TRAE",
+      "type": "label",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_exact",
+      "bounds": [
+        1459,
+        472,
+        1802,
+        507
+      ],
+      "center": [
+        1630,
+        489
+      ]
+    },
+    {
+      "id": 37,
+      "text": "text V",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        480,
+        489,
+        528,
+        510
+      ],
+      "center": [
+        504,
+        499
+      ]
+    },
+    {
+      "id": 38,
+      "text": "User request",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        675,
+        533,
+        808,
+        556
+      ],
+      "center": [
+        741,
+        544
+      ]
+    },
+    {
+      "id": 39,
+      "text": "Enhanced with rich contextformore accurate an..",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        1493,
+        541,
+        1877,
+        563
+      ],
+      "center": [
+        1685,
+        552
+      ]
+    },
+    {
+      "id": 40,
+      "text": "Openagent ecosystem tailored for all devneeds",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        1502,
+        581,
+        1865,
+        605
+      ],
+      "center": [
+        1683,
+        593
+      ]
+    },
+    {
+      "id": 41,
+      "text": "Run SAM ScreenParser",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        643,
+        603,
+        860,
+        627
+      ],
+      "center": [
+        751,
+        615
+      ]
+    },
+    {
+      "id": 42,
+      "text": "Understands,acts,and deliversreal software",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        1500,
+        619,
+        1837,
+        644
+      ],
+      "center": [
+        1668,
+        631
+      ]
+    },
+    {
+      "id": 43,
+      "text": "Problems",
+      "type": "sidebar_item",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_exact",
+      "bounds": [
+        393,
+        665,
+        465,
+        688
+      ],
+      "center": [
+        429,
+        676
+      ]
+    },
+    {
+      "id": 44,
+      "text": "Output",
+      "type": "sidebar_item",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_exact",
+      "bounds": [
+        484,
+        666,
+        542,
+        689
+      ],
+      "center": [
+        513,
+        677
+      ]
+    },
+    {
+      "id": 45,
+      "text": "Terminal",
+      "type": "sidebar_item",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_exact",
+      "bounds": [
+        562,
+        667,
+        626,
+        687
+      ],
+      "center": [
+        594,
+        677
+      ]
+    },
+    {
+      "id": 46,
+      "text": "powershell\u5341",
+      "type": "list_item",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_fuzzy",
+      "bounds": [
+        1046,
+        667,
+        1190,
+        687
+      ],
+      "center": [
+        1118,
+        677
+      ]
+    },
+    {
+      "id": 47,
+      "text": "@ PS D:\\Projects\\SAM-ScreenParser> py test_screen.py",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        383,
+        702,
+        906,
+        728
+      ],
+      "center": [
+        644,
+        715
+      ]
+    },
+    {
+      "id": 48,
+      "text": "Log in to start \u2192]",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        1477,
+        711,
+        1592,
+        734
+      ],
+      "center": [
+        1534,
+        722
+      ]
+    },
+    {
+      "id": 49,
+      "text": "Traceback (most recent call last):",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        403,
+        728,
+        744,
+        747
+      ],
+      "center": [
+        573,
+        737
+      ]
+    },
+    {
+      "id": 50,
+      "text": "File \"D:\\Projects\\SAM-ScreenParser\\test_screen.py\", line 12, in <module>",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        421,
+        748,
+        1144,
+        771
+      ],
+      "center": [
+        782,
+        759
+      ]
+    },
+    {
+      "id": 51,
+      "text": "from rapidocr_onnxruntime import RapidocR",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        441,
+        771,
+        857,
+        795
+      ],
+      "center": [
+        649,
+        783
+      ]
+    },
+    {
+      "id": 52,
+      "text": "ModuLeNotFoundError: No moduLe named 'rapidocr_onnxruntime",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        403,
+        797,
+        988,
+        817
+      ],
+      "center": [
+        695,
+        807
+      ]
+    },
+    {
+      "id": 53,
+      "text": "\u25cf PS D:\\Projects\\SAM-ScreenParser> .\\.venv\\Scripts\\Activate.ps1",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        385,
+        817,
+        1015,
+        841
+      ],
+      "center": [
+        700,
+        829
+      ]
+    },
+    {
+      "id": 54,
+      "text": "o (.venv) PS D:\\Projects\\SAM-ScreenParser> py test_screen.py",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        384,
+        840,
+        985,
+        866
+      ],
+      "center": [
+        684,
+        853
+      ]
+    },
+    {
+      "id": 55,
+      "text": ">Outline",
+      "type": "sidebar_item",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_fuzzy",
+      "bounds": [
+        61,
+        864,
+        137,
+        884
+      ],
+      "center": [
+        99,
+        874
+      ]
+    },
+    {
+      "id": 56,
+      "text": "> Timeline",
+      "type": "sidebar_item",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "dataset_fuzzy",
+      "bounds": [
+        61,
+        887,
+        148,
+        913
+      ],
+      "center": [
+        104,
+        900
+      ]
+    },
+    {
+      "id": 57,
+      "text": "Cue-Pro",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        68,
+        921,
+        143,
+        944
+      ],
+      "center": [
+        105,
+        932
+      ]
+    },
+    {
+      "id": 58,
+      "text": "No suggestions available, waiting for your",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        64,
+        950,
+        349,
+        974
+      ],
+      "center": [
+        206,
+        962
+      ]
+    },
+    {
+      "id": 59,
+      "text": "coding...",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        64,
+        971,
+        127,
+        996
+      ],
+      "center": [
+        95,
+        983
+      ]
+    },
+    {
+      "id": 60,
+      "text": "@Processed 0/0 changed point(s)",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        67,
+        1012,
+        287,
+        1034
+      ],
+      "center": [
+        177,
+        1023
+      ]
+    },
+    {
+      "id": 61,
+      "text": "X0AOm",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        14,
+        1055,
+        106,
+        1076
+      ],
+      "center": [
+        60,
+        1065
+      ]
+    },
+    {
+      "id": 62,
+      "text": "(-) Go Live",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        1732,
+        1055,
+        1812,
+        1078
+      ],
+      "center": [
+        1772,
+        1066
+      ]
+    },
+    {
+      "id": 63,
+      "text": "*CUE",
+      "type": "unknown",
+      "control_type": "PaneControl",
+      "class_name": "View",
+      "match_source": "none",
+      "bounds": [
+        1815,
+        1058,
+        1869,
+        1075
+      ],
+      "center": [
+        1842,
+        1066
+      ]
+    }
+  ],
+  "summary": {
+    "by_type": {
+      "list_item": 2,
+      "menu": 4,
+      "unknown": 44,
+      "button": 4,
+      "sidebar_item": 8,
+      "label": 1
+    },
+    "matched": 19,
+    "unknown": 44
+  }
+}
