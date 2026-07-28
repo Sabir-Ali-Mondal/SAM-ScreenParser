@@ -131,7 +131,8 @@ SAM-ScreenParser/
 A curated mapping of known UI element text to element types, loaded once at startup. The parser performs an exact lookup first, then a fuzzy match for OCR errors. Names are stored lowercase. The dataset covers IDE controls, browser UI, file explorer, Office applications, Windows settings, dialog buttons, status messages, and toolbar items.
 
  Here full file : [element_dataset.json](CodeBase/element_dataset.json)
- Type distribution:
+ ```
+Type distribution:
   button                2141  ███████████████████████████████████████████████████████████████████████████████████████████████████████████
   list_item              858  ██████████████████████████████████████████
   toolbar_button         321  ████████████████
@@ -174,6 +175,7 @@ A curated mapping of known UI element text to element types, loaded once at star
   date_picker              1
   spinner                  1
   avatar                   1
+```
 
 ```json
 [
