@@ -1,5 +1,16 @@
 """
  DUPLICATE REMOVER - element_dataset.json
+
+ Last element_dataset.json ::
+============================================================
+  SUMMARY
+============================================================
+  Original entries:    5552
+  Invalid removed:     0
+  Duplicates removed:  424
+  Final unique:        5128
+  Unique types:        42
+============================================================
 """
 
 
