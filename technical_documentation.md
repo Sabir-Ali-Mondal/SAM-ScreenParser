@@ -130,6 +130,51 @@ SAM-ScreenParser/
 
 A curated mapping of known UI element text to element types, loaded once at startup. The parser performs an exact lookup first, then a fuzzy match for OCR errors. Names are stored lowercase. The dataset covers IDE controls, browser UI, file explorer, Office applications, Windows settings, dialog buttons, status messages, and toolbar items.
 
+ Here full file : [element_dataset.json](CodeBase/element_dataset.json)
+ Type distribution:
+  button                2141  ███████████████████████████████████████████████████████████████████████████████████████████████████████████
+  list_item              858  ██████████████████████████████████████████
+  toolbar_button         321  ████████████████
+  menu                   184  █████████
+  label                  181  █████████
+  tab                    160  ████████
+  toggle                 152  ███████
+  section                148  ███████
+  checkbox               126  ██████
+  sidebar_item           107  █████
+  radio                   99  ████
+  status                  93  ████
+  panel                   78  ███
+  dropdown                73  ███
+  input                   70  ███
+  badge                   54  ██
+  table_header            51  ██
+  dialog_button           50  ██
+  icon                    37  █
+  search                  34  █
+  link                    16
+  notification            16
+  slider                  13
+  toast                   10
+  popup                    8
+  folder                   6
+  tree_item                5
+  title                    4
+  window_control           4
+  progress                 4
+  chip                     3
+  card                     3
+  image                    3
+  video                    3
+  audio                    3
+  breadcrumb               2
+  tooltip                  2
+  subtitle                 2
+  calendar                 1
+  date_picker              1
+  spinner                  1
+  avatar                   1
+
 ```json
 [
   {"name": "file", "type": "menu"},
